@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
+        xmlns:news="http://www.google.com/schemas/sitemap-news/0.9"
+        xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
+  <url>
+    <loc>https://tansoura.in/</loc>
+    <lastmod>2026-07-08T17:00:00+05:30</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="hi" href="https://tansoura.in/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://tansoura.in/en/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://tansoura.in/" />
+    <image:image>
+      <image:loc>https://tansoura.in/og-image.jpg</image:loc>
+      <image:title>Tansoura - Honest, Authentic &amp; Affordable Online Shopping</image:title>
+      <image:caption>Shop 100% authentic products at cheapest prices on Tansoura</image:caption>
+    </image:image>
+  </url>
+
+  <!-- Category Pages -->
+  <url>
+    <loc>https://tansoura.in/category/skincare</loc>
+    <lastmod>2026-07-08T17:00:00+05:30</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://tansoura.in/category/fashion</loc>
+    <lastmod>2026-07-08T17:00:00+05:30</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://tansoura.in/category/electronics</loc>
+    <lastmod>2026-07-08T17:00:00+05:30</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://tansoura.in/category/grocery</loc>
+    <lastmod>2026-07-08T17:00:00+05:30</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://tansoura.in/category/home-kitchen</loc>
+    <lastmod>2026-07-08T17:00:00+05:30</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://tansoura.in/category/beauty</loc>
+    <lastmod>2026-07-08T17:00:00+05:30</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://tansoura.in/category/new-arrivals</loc>
+    <lastmod>2026-07-08T17:00:00+05:30</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Static/Informational Pages -->
+  <url>
+    <loc>https://tansoura.in/checkout</loc>
+    <lastmod>2026-07-08T17:00:00+05:30</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://tansoura.in/order-success</loc>
+    <lastmod>2026-07-08T17:00:00+05:30</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.1</priority>
+  </url>
+</urlset>

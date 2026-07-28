@@ -1,0 +1,40 @@
+[build]
+  base = "frontend"
+  command = "npm install && npm run build"
+  publish = "dist"
+
+# ===== SECURITY HEADERS =====
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+
+# ===== REDIRECTS =====
+# Serve admin panel under /admin path (must come before catch-all)
+[[redirects]]
+  from = "/admin/*"
+  to = "/admin/index.html"
+  status = 200
+
+# API proxy to backend on Render
+[[redirects]]
+  from = "/api/*"
+  to = "https://tansbackend-aqwx.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+# Uploads proxy
+[[redirects]]
+  from = "/uploads/*"
+  to = "https://tansbackend-aqwx.onrender.com/uploads/:splat"
+  status = 200
+  force = true
+
+# For SPA routing (React Router)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

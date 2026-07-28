@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+     xmlns:content="http://purl.org/rss/1.0/modules/content/"
+     xmlns:atom="http://www.w3.org/2005/Atom"
+     xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Tansoura - Latest Products & Offers</title>
+    <link>https://tansoura.in/</link>
+    <description>Stay updated with the latest products, offers, and deals on Tansoura - India's cheapest online shopping platform for honest, authentic & affordable products.</description>
+    <language>hi-in</language>
+    <lastBuildDate>Tue, 08 Jul 2026 17:00:00 +0530</lastBuildDate>
+    <atom:link href="https://tansoura.in/rss.xml" rel="self" type="application/rss+xml"/>
+    <managingEditor>support@tansoura.com</managingEditor>
+    <webMaster>support@tansoura.com</webMaster>
+    <category>Shopping</category>
+    <image>
+      <url>https://tansoura.in/logo.png</url>
+      <title>Tansoura - Honest, Authentic & Affordable Shopping</title>
+      <link>https://tansoura.in/</link>
+      <width>144</width>
+      <height>144</height>
+    </image>
+
+    <item>
+      <title>New Skincare Products Just Launched - Shop Now!</title>
+      <link>https://tansoura.in/category/skincare</link>
+      <description>Discover our latest skincare products including face washes, moisturizers, serums & more. 100% authentic products at lowest prices.</description>
+      <pubDate>Tue, 08 Jul 2026 17:00:00 +0530</pubDate>
+      <guid>https://tansoura.in/category/skincare</guid>
+      <category>Skincare</category>
+      <category>New Arrivals</category>
+    </item>
+
+    <item>
+      <title>Free Shipping on All Orders Above ₹299</title>
+      <link>https://tansoura.in/</link>
+      <description>Get free delivery on all orders above ₹299. Shop skincare, fashion, electronics, grocery & more at best prices. Extra 5% off on prepaid orders.</description>
+      <pubDate>Mon, 07 Jul 2026 10:00:00 +0530</pubDate>
+      <guid>https://tansoura.in/free-shipping-offer</guid>
+      <category>Offers</category>
+      <category>Free Shipping</category>
+    </item>
+
+    <item>
+      <title>Fashion Collection - Trendy Styles at Cheapest Prices</title>
+      <link>https://tansoura.in/category/fashion</link>
+      <description>Shop the latest fashion trends for men and women. Clothing, accessories & more at prices you'll love. 100% authentic with easy returns.</description>
+      <pubDate>Sun, 06 Jul 2026 15:30:00 +0530</pubDate>
+      <guid>https://tansoura.in/category/fashion</guid>
+      <category>Fashion</category>
+      <category>Clothing</category>
+    </item>
+
+    <item>
+      <title>Electronics & Gadgets - Best Deals This Week</title>
+      <link>https://tansoura.in/category/electronics</link>
+      <description>Shop earphones, smart watches, chargers, cables & more at unbeatable prices. Authentic electronics with warranty. Limited time offers!</description>
+      <pubDate>Sat, 05 Jul 2026 12:00:00 +0530</pubDate>
+      <guid>https://tansoura.in/category/electronics</guid>
+      <category>Electronics</category>
+      <category>Gadgets</category>
+    </item>
+
+    <item>
+      <title>Grocery Essentials - Daily Needs at Lowest Prices</title>
+      <link>https://tansoura.in/category/grocery</link>
+      <description>Shop grocery, kitchen essentials, daily needs at cheapest prices. Free delivery on groceries. Authentic products, fast shipping across India.</description>
+      <pubDate>Fri, 04 Jul 2026 09:00:00 +0530</pubDate>
+      <guid>https://tansoura.in/category/grocery</guid>
+      <category>Grocery</category>
+      <category>Daily Needs</category>
+    </item>
+  </channel>
+</rss>

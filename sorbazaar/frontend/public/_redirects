@@ -1,0 +1,39 @@
+# ===== SEO STATIC FILES (must be BEFORE the catch-all) =====
+/sitemap.xml /sitemap.xml 200
+/robots.txt /robots.txt 200
+/rss.xml /rss.xml 200
+/site.webmanifest /site.webmanifest 200
+/og-image.jpg /og-image.jpg 200
+/logo.png /logo.png 200
+
+# Favicon files
+/favicon.ico /favicon.ico 200
+/favicon-16x16.png /favicon-16x16.png 200
+/favicon-32x32.png /favicon-32x32.png 200
+/apple-touch-icon.png /apple-touch-icon.png 200
+
+# ===== DOMAIN REDIRECTS =====
+https://www.tansoura.in/* https://tansoura.in/:splat 301!
+https://tansoura.com/* https://tansoura.in/:splat 301!
+https://www.tansoura.com/* https://tansoura.in/:splat 301!
+http://www.tansoura.in/* https://tansoura.in/:splat 301!
+http://tansoura.in/* https://tansoura.in/:splat 301!
+http://www.tansoura.com/* https://tansoura.in/:splat 301!
+http://tansoura.com/* https://tansoura.in/:splat 301!
+
+# ===== API PROXY =====
+/api/* https://tansbackend-aqwx.onrender.com/api/:splat 200
+/uploads/* https://tansbackend-aqwx.onrender.com/uploads/:splat 200
+
+# ===== SPA FALLBACK =====
+# Admin assets - serve directly (must come BEFORE admin SPA fallback)
+/admin/assets/* /admin/assets/:splat 200
+
+# Admin panel SPA fallback
+/admin/* /admin/index.html 200
+
+# Sitemap XML needs to be served as static file - this rule ensures it
+/sitemap.xml /sitemap.xml 200!
+
+# Main SPA - all routes to index.html
+/* /index.html 200

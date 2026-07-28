@@ -1,0 +1,11 @@
+node_modules/
+.env
+server-err.log
+server-out.log
+*.log
+uploads/*
+!uploads/.gitkeep
+admin/node_modules/
+frontend/node_modules/
+dist/
+.DS_Store

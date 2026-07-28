@@ -1,0 +1,140 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# ===== SEO & SECURITY HEADERS =====
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.json"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+
+[[headers]]
+  for = "/uploads/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, immutable"
+
+[[headers]]
+  for = "/*.jpg"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, immutable"
+
+[[headers]]
+  for = "/*.jpeg"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, immutable"
+
+[[headers]]
+  for = "/*.png"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, immutable"
+
+[[headers]]
+  for = "/*.webp"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, immutable"
+
+[[headers]]
+  for = "/robots.txt"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "/sitemap.xml"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "/favicon*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/og-image.jpg"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# ===== REDIRECTS =====
+# IMPORTANT: Order matters - more specific rules must come before general ones
+
+# API proxy - must come BEFORE HTTP→HTTPS redirect to avoid breaking API calls
+[[redirects]]
+  from = "/api/*"
+  to = "https://tansbackend-aqwx.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+# Uploads proxy
+[[redirects]]
+  from = "/uploads/*"
+  to = "https://tansbackend-aqwx.onrender.com/uploads/:splat"
+  status = 200
+  force = true
+
+# SEO redirects: tansoura.com → tansoura.in, WWW → non-WWW
+[[redirects]]
+  from = "https://www.tansoura.in/*"
+  to = "https://tansoura.in/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://tansoura.com/*"
+  to = "https://tansoura.in/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://www.tansoura.com/*"
+  to = "https://tansoura.in/:splat"
+  status = 301
+  force = true
+
+# HTTP → HTTPS redirect (specific hosts only, not wildcard)
+[[redirects]]
+  from = "http://tansoura.in/*"
+  to = "https://tansoura.in/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "http://www.tansoura.in/*"
+  to = "https://tansoura.in/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "http://tansoura.com/*"
+  to = "https://tansoura.in/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "http://www.tansoura.com/*"
+  to = "https://tansoura.in/:splat"
+  status = 301
+  force = true
+
+# SPA fallback: redirect all routes to index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

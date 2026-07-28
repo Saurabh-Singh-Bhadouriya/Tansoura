@@ -1,0 +1,33 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# ===== SECURITY HEADERS =====
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+
+# API proxy - must come BEFORE SPA fallback
+[[redirects]]
+  from = "/api/*"
+  to = "https://sorbazaar-backend.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+# Uploads proxy
+[[redirects]]
+  from = "/uploads/*"
+  to = "https://sorbazaar-backend.onrender.com/uploads/:splat"
+  status = 200
+  force = true
+
+# SPA fallback - all routes serve index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

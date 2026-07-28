@@ -1,0 +1,67 @@
+# robots.txt for Tansoura.in
+# Allow all search engines AND AI crawlers full access
+
+User-agent: *
+Allow: /
+
+# Disallow admin paths from being indexed
+Disallow: /admin/
+Disallow: /checkout
+Disallow: /order-success
+Disallow: /api/
+
+# Sitemap location
+Sitemap: https://tansoura.in/sitemap.xml
+
+# Crawl delay for polite crawling
+Crawl-delay: 1
+
+# ===== AI / LLM Crawlers - ALL ALLOWED =====
+# ChatGPT / OpenAI
+User-agent: GPTBot
+Allow: /
+
+# Google AI
+User-agent: Google-Extended
+Allow: /
+
+# Anthropic / Claude
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+# Perplexity
+User-agent: PerplexityBot
+Allow: /
+
+# Grok / xAI
+User-agent: GrokBot
+Allow: /
+
+# DeepSeek
+User-agent: DeepSeekBot
+Allow: /
+
+# Meta / Llama
+User-agent: meta-externalagent
+Allow: /
+
+# Common AI crawlers
+User-agent: CCBot
+Allow: /
+
+User-agent: Omgilibot
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+# Amazonbot - allowed
+User-agent: Amazonbot
+Allow: /
+
+# Bytespider (ByteDance/TikTok) - allowed
+User-agent: Bytespider
+Allow: /

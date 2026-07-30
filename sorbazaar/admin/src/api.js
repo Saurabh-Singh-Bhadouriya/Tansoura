@@ -23,6 +23,7 @@ export async function wakeBackend() {
 }
 
 // Enhanced fetch with timeout and better error messages
+// Timeout is 120s for regular requests, 300s for file uploads (FormData)
 export async function apiFetch(endpoint, options = {}) {
   const token = localStorage.getItem('adminToken');
   const headers = { ...options.headers };
@@ -35,9 +36,12 @@ export async function apiFetch(endpoint, options = {}) {
   const separator = endpoint.includes('?') ? '&' : '?';
   url += `${separator}_cb=${Date.now()}_${requestCounter}`;
   
-  // Add timeout to prevent infinite hanging (especially when Render backend is sleeping)
+  // Use longer timeout for file uploads (FormData) to allow large videos to upload fully
+  const isFileUpload = options.body instanceof FormData;
+  const timeoutMs = isFileUpload ? 300000 : 120000; // 5 min for uploads, 2 min for regular
+  
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   
   try {
     const res = await fetch(url, { 
@@ -61,7 +65,7 @@ export async function apiFetch(endpoint, options = {}) {
   } catch (err) {
     clearTimeout(timeoutId);
     if (err.name === 'AbortError') {
-      throw new Error('Request timed out. The backend server may be starting up. Please try again in 30 seconds.');
+      throw new Error(`Request timed out after ${timeoutMs / 1000}s. The backend server may be starting up or the file is too large. Please try again.`);
     }
     if (err.message === 'Failed to fetch' || err.message.includes('NetworkError')) {
       throw new Error('Cannot connect to the backend server. It may be starting up. Please try again in 30 seconds.');

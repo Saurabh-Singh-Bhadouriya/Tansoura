@@ -13,7 +13,7 @@ const app = express();
 
 // ===== SECURITY & PERFORMANCE MIDDLEWARE =====
 
-// Trust proxy for Render/Netlify/Vercel (required for rate limiting, secure cookies, IP detection)
+// Trust Proxy for Render/Netlify/Vercel (required for rate limiting, secure cookies, IP detection)
 app.set('trust proxy', 1);
 
 // Security headers
@@ -80,8 +80,8 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Response time tracking (logging only - headers can't be set after response finishes)
@@ -175,7 +175,7 @@ app.use((err, req, res, next) => {
 
   // Multer file size error
   if (err.code === 'LIMIT_FILE_SIZE') {
-    return res.status(400).json({ message: 'File too large. Maximum size is 50MB.' });
+    return res.status(400).json({ message: 'File too large. Maximum size is 100MB.' });
   }
 
   // Default error

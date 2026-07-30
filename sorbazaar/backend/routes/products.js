@@ -72,16 +72,26 @@ function buildUserFilter(query) {
   return filter;
 }
 
+// Ultra-fast product listing with cache headers
 router.get('/', cacheProducts, async (req, res) => {
   try {
     const { limit = 20, page = 1 } = req.query;
     const filter = buildUserFilter(req.query);
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
+    // Ultra-fast query with minimal fields
     const [products, total] = await Promise.all([
-      Product.find(filter).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)),
+      Product.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean()
+        .select('title handle price images variants badge productCategory navPage rating reviewCount'),
       Product.countDocuments(filter)
     ]);
+    
+    // Add cache headers for CDN/cloudflare - 5 minutes
+    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=300');
     res.json({ products, total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -90,8 +100,26 @@ router.get('/', cacheProducts, async (req, res) => {
 
 router.get('/admin/all', adminAuth, async (req, res) => {
   try {
-    const products = await Product.find().sort({ updatedAt: -1 });
-    res.json(products);
+    const { page = 1, limit = 50 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Ultra-fast admin listing with pagination and minimal fields
+    const [products, total] = await Promise.all([
+      Product.find()
+        .sort({ updatedAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean()
+        .select('title handle price images variants badge productCategory navPage rating reviewCount published status vendor platform createdAt updatedAt'),
+      Product.countDocuments({})
+    ]);
+    
+    res.json({ 
+      products, 
+      total, 
+      page: parseInt(page), 
+      pages: Math.ceil(total / parseInt(limit))
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -201,7 +229,8 @@ router.post('/bulk-import', adminAuth, upload.single('file'), async (req, res) =
 router.get('/bulk-export/:platform', adminAuth, async (req, res) => {
   try {
     const { platform } = req.params;
-    const products = await Product.find();
+    // Use lean() for faster export
+    const products = await Product.find().lean().select('title handle price images variants badge productCategory vendor');
     const headers = getExportHeaders(platform);
     const rows = products.map(p => productToExportRow(p, platform));
 
@@ -218,13 +247,14 @@ router.get('/bulk-export/:platform', adminAuth, async (req, res) => {
   }
 });
 
+// Ultra-fast recommendations with lean query
 router.get('/recommendations/:id', cacheProducts, async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findById(req.params.id).lean().select('navPage');
     const filter = product
       ? { 
           _id: { $ne: product._id }, 
-          navPage: product.navPage,
+          navPage: product.navPage || 'home',
           $or: [
             { published: true, status: 'active' },
             { published: 'true', status: 'active' }
@@ -234,14 +264,21 @@ router.get('/recommendations/:id', cacheProducts, async (req, res) => {
           { published: true, status: 'active' },
           { published: 'true', status: 'active' }
         ]};
-    const recommendations = await Product.find(filter).limit(10);
+    
+    const recommendations = await Product.find(filter)
+      .limit(10)
+      .lean()
+      .select('title handle price images variants badge productCategory');
+    
+    res.setHeader('Cache-Control', 'public, max-age=120, s-maxage=120');
     res.json(recommendations);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-router.get('/:handle', async (req, res) => {
+// Ultra-fast product detail with optimizations
+router.get('/:handle', cacheProducts, async (req, res) => {
   try {
     const product = await Product.findOne({
       $and: [
@@ -258,8 +295,14 @@ router.get('/:handle', async (req, res) => {
           ]
         }
       ]
-    });
+    })
+      .lean()
+      .select('-__v'); // Exclude version key for smaller payload
+    
     if (!product) return res.status(404).json({ message: 'Product not found' });
+    
+    // Cache product detail for 2 minutes
+    res.setHeader('Cache-Control', 'public, max-age=120, s-maxage=120');
     res.json(product);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -271,6 +314,12 @@ router.post('/', adminAuth, upload.fields([
   { name: 'videos', maxCount: 5 }
 ]), async (req, res) => {
   try {
+    console.log('POST /products - Files received:', {
+      images: req.files?.images?.length || 0,
+      videos: req.files?.videos?.length || 0,
+      videoFiles: req.files?.videos?.map(f => ({ name: f.originalname, size: f.size, mimetype: f.mimetype }))
+    });
+    
     const data = JSON.parse(req.body.productData || '{}');
     data.published = data.published === true || data.published === 'true' || data.published === '1';
     if (!data.status || data.status === 'undefined') data.status = 'active';
@@ -282,6 +331,7 @@ router.post('/', adminAuth, upload.fields([
     }
     if (req.files?.videos) {
       data.videos = req.files.videos.map(f => `/uploads/${f.filename}`);
+      console.log('Video paths saved:', data.videos);
     }
     const product = await Product.create(data);
     if (global.bumpDataVersion) global.bumpDataVersion();
@@ -297,6 +347,13 @@ router.put('/:id', adminAuth, upload.fields([
   { name: 'videos', maxCount: 5 }
 ]), async (req, res) => {
   try {
+    console.log('PUT /products/:id - Files received:', {
+      id: req.params.id,
+      images: req.files?.images?.length || 0,
+      videos: req.files?.videos?.length || 0,
+      videoFiles: req.files?.videos?.map(f => ({ name: f.originalname, size: f.size, mimetype: f.mimetype }))
+    });
+    
     const data = JSON.parse(req.body.productData || '{}');
     data.published = data.published === true || data.published === 'true' || data.published === '1';
     if (!data.status || data.status === 'undefined') data.status = 'active';
@@ -308,10 +365,10 @@ router.put('/:id', adminAuth, upload.fields([
       data.images = [...(data.images || []), ...newImages];
     }
     if (req.files?.videos && req.files.videos.length > 0) {
-      // Preserve existing videos and append new ones
       const existingVideos = data.videos || [];
       const newVideos = req.files.videos.map(f => `/uploads/${f.filename}`);
       data.videos = [...existingVideos, ...newVideos];
+      console.log('Video paths updated:', data.videos);
     }
     if (!data.handle && data.title) {
       data.handle = data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');

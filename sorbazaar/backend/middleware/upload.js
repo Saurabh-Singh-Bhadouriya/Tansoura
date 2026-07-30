@@ -17,6 +17,7 @@ const fileFilter = (req, file, cb) => {
   cb(null, ext || mime);
 };
 
-const upload = multer({ storage, fileFilter, limits: { fileSize: 50 * 1024 * 1024 } });
+// Increased file size limit to 100MB to accommodate larger video uploads
+const upload = multer({ storage, fileFilter, limits: { fileSize: 100 * 1024 * 1024 } });
 
 module.exports = upload;

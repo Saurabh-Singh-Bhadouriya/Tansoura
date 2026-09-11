@@ -1,6 +1,6 @@
 const express = require('express');
-const Category = require('../models/Category');
-const { auth, adminAuth } = require('../middleware/auth');
+const prisma = require('../prismaClient');
+const { adminAuth } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 
 const router = express.Router();
@@ -8,7 +8,10 @@ const router = express.Router();
 // Get all active categories (public)
 router.get('/', async (req, res) => {
   try {
-    const categories = await Category.find({ active: true }).sort({ order: 1, name: 1 });
+    const categories = await prisma.category.findMany({
+      where: { active: true },
+      orderBy: { order: 'asc' }
+    });
     res.json(categories);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -18,7 +21,9 @@ router.get('/', async (req, res) => {
 // Get all categories (admin)
 router.get('/admin/all', adminAuth, async (req, res) => {
   try {
-    const categories = await Category.find().sort({ order: 1, name: 1 });
+    const categories = await prisma.category.findMany({
+      orderBy: { order: 'asc' }
+    });
     res.json(categories);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -28,11 +33,8 @@ router.get('/admin/all', adminAuth, async (req, res) => {
 // Get single category
 router.get('/:handle', async (req, res) => {
   try {
-    const category = await Category.findOne({
-      $or: [
-        { handle: req.params.handle },
-        { _id: req.params.handle.match(/^[0-9a-fA-F]{24}$/) ? req.params.handle : null }
-      ]
+    const category = await prisma.category.findFirst({
+      where: { handle: req.params.handle }
     });
     if (!category) return res.status(404).json({ message: 'Category not found' });
     res.json(category);
@@ -44,11 +46,12 @@ router.get('/:handle', async (req, res) => {
 // Create category
 router.post('/', adminAuth, upload.single('image'), async (req, res) => {
   try {
-    const data = req.body;
-    if (req.file) {
-      data.image = `/uploads/${req.file.filename}`;
+    const data = { ...req.body };
+    if (req.file) data.image = `/uploads/${req.file.filename}`;
+    if (!data.handle && data.name) {
+      data.handle = data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     }
-    const category = await Category.create(data);
+    const category = await prisma.category.create({ data });
     if (global.bumpDataVersion) global.bumpDataVersion();
     res.status(201).json(category);
   } catch (err) {
@@ -59,13 +62,13 @@ router.post('/', adminAuth, upload.single('image'), async (req, res) => {
 // Update category
 router.put('/:id', adminAuth, upload.single('image'), async (req, res) => {
   try {
-    const data = req.body;
-    if (req.file) {
-      data.image = `/uploads/${req.file.filename}`;
-    }
-    data.updatedAt = Date.now();
-    const category = await Category.findByIdAndUpdate(req.params.id, data, { new: true, runValidators: true });
-    if (!category) return res.status(404).json({ message: 'Category not found' });
+    const data = { ...req.body };
+    if (req.file) data.image = `/uploads/${req.file.filename}`;
+    data.updatedAt = new Date();
+    const category = await prisma.category.update({
+      where: { id: req.params.id },
+      data
+    });
     if (global.bumpDataVersion) global.bumpDataVersion();
     res.json(category);
   } catch (err) {
@@ -76,7 +79,7 @@ router.put('/:id', adminAuth, upload.single('image'), async (req, res) => {
 // Delete category
 router.delete('/:id', adminAuth, async (req, res) => {
   try {
-    await Category.findByIdAndDelete(req.params.id);
+    await prisma.category.delete({ where: { id: req.params.id } });
     if (global.bumpDataVersion) global.bumpDataVersion();
     res.json({ message: 'Category deleted' });
   } catch (err) {

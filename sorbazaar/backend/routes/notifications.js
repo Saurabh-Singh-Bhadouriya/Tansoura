@@ -1,18 +1,18 @@
 const express = require('express');
-const Notification = require('../models/Notification');
+const prisma = require('../prismaClient');
 const { auth, adminAuth } = require('../middleware/auth');
-const Order = require('../models/Order');
-const User = require('../models/User');
 
 const router = express.Router();
 
 // Get my notifications (user)
 router.get('/my', auth, async (req, res) => {
   try {
-    const notifications = await Notification.find({ user: req.user._id })
-      .sort({ createdAt: -1 })
-      .limit(50);
-    const unreadCount = await Notification.countDocuments({ user: req.user._id, read: false });
+    const notifications = await prisma.notification.findMany({
+      where: { userId: req.user.id },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+    const unreadCount = await prisma.notification.count({ where: { userId: req.user.id, read: false } });
     res.json({ notifications, unreadCount });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -22,12 +22,11 @@ router.get('/my', auth, async (req, res) => {
 // Mark notification as read
 router.put('/:id/read', auth, async (req, res) => {
   try {
-    const notification = await Notification.findOne({ _id: req.params.id, user: req.user._id });
+    const notification = await prisma.notification.findFirst({ where: { id: req.params.id, userId: req.user.id } });
     if (!notification) return res.status(404).json({ message: 'Notification not found' });
-    
-    notification.read = true;
-    await notification.save();
-    res.json({ message: 'Marked as read', notification });
+
+    const updated = await prisma.notification.update({ where: { id: req.params.id }, data: { read: true } });
+    res.json({ message: 'Marked as read', notification: updated });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -36,21 +35,33 @@ router.put('/:id/read', auth, async (req, res) => {
 // Mark all as read
 router.put('/read-all', auth, async (req, res) => {
   try {
-    await Notification.updateMany({ user: req.user._id, read: false }, { read: true });
-    res.json({ message: 'All notifications marked as read' });
+    const result = await prisma.notification.updateMany({
+      where: { userId: req.user.id, read: false },
+      data: { read: true }
+    });
+    res.json({ message: 'All notifications marked as read', count: result.count });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// Admin: Get all notifications
+// Admin: Get all notifications (attach minimal user info)
 router.get('/admin/all', adminAuth, async (req, res) => {
   try {
-    const notifications = await Notification.find()
-      .populate('user', 'username email phone')
-      .sort({ createdAt: -1 })
-      .limit(100);
-    res.json(notifications);
+    const notifications = await prisma.notification.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    });
+    const users = await prisma.user.raw.find({}, { projection: { _id: 1, username: 1, email: 1, phone: 1 } }).toArray();
+    const userMap = new Map(users.map(u => [String(u._id), u]));
+    const out = notifications.map(n => ({
+      ...n,
+      user: (() => {
+        const u = userMap.get(String(n.userId));
+        return u ? { id: String(u._id), username: u.username, email: u.email, phone: u.phone } : undefined;
+      })()
+    }));
+    res.json(out);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -59,14 +70,8 @@ router.get('/admin/all', adminAuth, async (req, res) => {
 // Helper: Create notification
 async function createNotification(userId, type, title, message, data = {}, actionUrl = '', actions = []) {
   try {
-    const notification = await Notification.create({
-      user: userId,
-      type,
-      title,
-      message,
-      data,
-      actionUrl,
-      actions
+    const notification = await prisma.notification.create({
+      data: { userId, type, title, message, data, actionUrl, actions, read: false }
     });
     return notification;
   } catch (err) {
@@ -78,10 +83,10 @@ async function createNotification(userId, type, title, message, data = {}, actio
 // Helper: Notify admins
 async function notifyAdmins(type, title, message, data = {}, actionUrl = '', actions = []) {
   try {
-    const admins = await User.find({ role: 'admin' });
+    const admins = await prisma.user.findMany({ where: { role: 'admin' } });
     const notifications = [];
     for (const admin of admins) {
-      const notif = await createNotification(admin._id, type, title, message, data, actionUrl, actions);
+      const notif = await createNotification(admin.id, type, title, message, data, actionUrl, actions);
       if (notif) notifications.push(notif);
     }
     return notifications;
@@ -99,9 +104,7 @@ async function notifyUser(userId, type, title, message, data = {}, actionUrl = '
 // Admin: Delete notification
 router.delete('/admin/:id', adminAuth, async (req, res) => {
   try {
-    const notification = await Notification.findById(req.params.id);
-    if (!notification) return res.status(404).json({ message: 'Notification not found' });
-    await Notification.findByIdAndDelete(req.params.id);
+    await prisma.notification.delete({ where: { id: req.params.id } });
     res.json({ message: 'Notification deleted successfully' });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -111,19 +114,16 @@ router.delete('/admin/:id', adminAuth, async (req, res) => {
 // Admin: Get pending UPI verifications count
 router.get('/admin/pending-upi-count', adminAuth, async (req, res) => {
   try {
-    const count = await Order.countDocuments({
-      paymentMethod: 'upi',
-      paymentStatus: 'pending_verification'
-    });
+    const count = await prisma.order.count({ where: { paymentMethod: 'upi', paymentStatus: 'pending_verification' } });
     res.json({ count });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-module.exports = { 
-  router, 
-  createNotification, 
-  notifyAdmins, 
-  notifyUser 
+module.exports = {
+  router,
+  createNotification,
+  notifyAdmins,
+  notifyUser
 };

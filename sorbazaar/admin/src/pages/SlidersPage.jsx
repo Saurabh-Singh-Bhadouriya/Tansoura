@@ -35,10 +35,15 @@ export default function SlidersPage() {
       fd.append('sliderData', JSON.stringify(form));
       if (image) fd.append('image', image);
       if (video) fd.append('video', video);
-      if (editing) await slidersApi.update(editing._id, fd);
-      else await slidersApi.create(fd);
+      let saved;
+      if (editing) {
+        saved = await slidersApi.update(editing.id, fd);
+        setList(prev => prev.map(s => s.id === saved.id ? saved : s));
+      } else {
+        saved = await slidersApi.create(fd);
+        setList(prev => [...prev, saved]);
+      }
       setShowForm(false);
-      load();
     } catch (err) {
       setSaveError(err.message || 'Failed to save slider. Please try again.');
     } finally {
@@ -48,8 +53,12 @@ export default function SlidersPage() {
 
   const handleDelete = async (id) => {
     if (!confirm('Delete slider?')) return;
-    await slidersApi.delete(id);
-    load();
+    try {
+      await slidersApi.delete(id);
+      setList(prev => prev.filter(s => s.id !== id));
+    } catch (err) {
+      setSaveError(err.message || 'Failed to delete slider.');
+    }
   };
 
   return (
@@ -73,7 +82,7 @@ export default function SlidersPage() {
             <tbody>
               {loading ? <tr><td colSpan={7}>Loading...</td></tr> :
                 filtered.map(s => (
-                  <tr key={s._id}>
+                  <tr key={s.id}>
                     <td>
                       {s.video ? (
                         <video src={mediaUrl(s.video)} alt="" style={{ width: 80, height: 40, objectFit: 'cover', borderRadius: 6 }} />
@@ -90,7 +99,7 @@ export default function SlidersPage() {
                     <td>{s.active ? '✅' : '❌'}</td>
                     <td>
                       <button className="btn btn-sm btn-outline" onClick={() => openEdit(s)}>Edit</button>{' '}
-                      <button className="btn btn-sm btn-danger" onClick={() => handleDelete(s._id)}>Delete</button>
+                      <button className="btn btn-sm btn-danger" onClick={() => handleDelete(s.id)}>Delete</button>
                     </td>
                   </tr>
                 ))}

@@ -63,7 +63,7 @@ export default function PromoCodesPage() {
         maxDiscountAmount: form.maxDiscountAmount ? parseFloat(form.maxDiscountAmount) : undefined
       };
       if (editing) {
-        await apiFetch(`/promo/admin/${editing._id}`, { method: 'PUT', body: JSON.stringify(payload) });
+        await apiFetch(`/promo/admin/${editing.id}`, { method: 'PUT', body: JSON.stringify(payload) });
         setMessage('Promo code updated successfully!');
       } else {
         await apiFetch('/promo/admin/create', { method: 'POST', body: JSON.stringify(payload) });
@@ -119,7 +119,7 @@ export default function PromoCodesPage() {
                 <tr><td colSpan={9} style={{ textAlign: 'center' }}>No promo codes found</td></tr>
               ) : (
                 codes.map((c) => (
-                  <tr key={c._id}>
+                  <tr key={c.id}>
                     <td><strong>{c.code}</strong></td>
                     <td>{c.description || '-'}</td>
                     <td>{c.discountType === 'percentage' ? `${c.discountValue}%` : `₹${c.discountValue}`}</td>
@@ -130,7 +130,7 @@ export default function PromoCodesPage() {
                     <td>{c.isActive ? '✅' : '❌'}</td>
                     <td>
                       <button className="btn btn-sm btn-outline" onClick={() => openEdit(c)}>Edit</button>{' '}
-                      <button className="btn btn-sm btn-danger" onClick={() => handleDelete(c._id)}>Delete</button>
+                      <button className="btn btn-sm btn-danger" onClick={() => handleDelete(c.id)}>Delete</button>
                     </td>
                   </tr>
                 ))

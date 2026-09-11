@@ -29,7 +29,7 @@ export default function CartDrawer() {
       <div className={`cart-drawer ${cartOpen ? 'open' : ''}`}>
         <div className="cart-header">
           <h2>Cart ({cart.length})</h2>
-          <button className="cart-close" onClick={() => setCartOpen(false)}>×</button>
+          <button className="cart-close" onClick={() => setCartOpen(false)} aria-label="Close cart">×</button>
         </div>
 
         <div className="cart-items">
@@ -40,17 +40,34 @@ export default function CartDrawer() {
             </div>
           ) : cart.map(item => (
             <div key={item.key} className="cart-item">
-              <img className="cart-item-img" src={imgUrl(item.image)} alt={item.title} />
+              <img 
+                className="cart-item-img" 
+                src={imgUrl(item.image)} 
+                alt={item.title}
+                loading="lazy"
+                decoding="async"
+              />
               <div className="cart-item-info">
                 <div className="cart-item-title">{item.title}</div>
                 {item.variant && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{item.variant}</div>}
                 <div className="cart-item-price">{formatPrice(item.price)}</div>
                 <div className="cart-qty">
-                  <button onClick={() => updateQty(item.key, item.quantity - 1)}>−</button>
+                  <button 
+                    onClick={() => updateQty(item.key, item.quantity - 1)}
+                    aria-label="Decrease quantity"
+                    type="button"
+                  >−</button>
                   <span>{item.quantity}</span>
-                  <button onClick={() => updateQty(item.key, item.quantity + 1)}>+</button>
-                  <button style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--danger)', background: 'none' }}
-                    onClick={() => removeFromCart(item.key)}>Remove</button>
+                  <button 
+                    onClick={() => updateQty(item.key, item.quantity + 1)}
+                    aria-label="Increase quantity"
+                    type="button"
+                  >+</button>
+                  <button 
+                    style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--danger)', background: 'none' }}
+                    onClick={() => removeFromCart(item.key)}
+                    type="button"
+                  >Remove</button>
                 </div>
               </div>
             </div>
@@ -62,7 +79,7 @@ export default function CartDrawer() {
             <h3>Trending Products</h3>
             <div className="cart-rec-grid">
               {recommendations.slice(0, 6).map(p => (
-                <div key={p._id} className="cart-rec-item" onClick={() => { setCartOpen(false); navigate(`/products/${p.handle}`); }}>
+                <div key={p.id} className="cart-rec-item" onClick={() => { setCartOpen(false); navigate(`/products/${p.handle}`); }}>
                   <img src={imgUrl(p.images?.[0]?.src)} alt={p.title} />
                   <p>{p.title.slice(0, 30)}...</p>
                   <span>{formatPrice(p.variants?.[0]?.price)}</span>

@@ -46,7 +46,7 @@ export default function Navbar() {
     ? categories
         .filter(c => c.active)
         .sort((a, b) => (a.order || 0) - (b.order || 0))
-        .map(c => ({ label: c.name, path: `/category/${c.handle || c._id}`, page: c.handle }))
+        .map(c => ({ label: c.name, path: `/category/${c.handle || c.id}`, page: c.handle }))
     : NAV_ITEMS.map(item => ({ label: item.label, path: item.path, page: item.page }));
 
   // Top menu items (shown after logo)

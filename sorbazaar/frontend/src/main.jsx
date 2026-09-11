@@ -5,6 +5,7 @@ import { HelmetProvider } from 'react-helmet-async';
 import { AppProvider } from './context/AppContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { DataRefreshProvider } from './context/DataRefreshContext';
+import ScrollToTop from './components/ScrollToTop';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import CartDrawer from './components/CartDrawer';
@@ -30,6 +31,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           v7_relativeSplatPath: true
         }}
       >
+        <ScrollToTop />
         <DataRefreshProvider>
         <AppProvider>
           <NotificationProvider>

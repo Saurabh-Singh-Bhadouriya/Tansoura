@@ -127,15 +127,15 @@ export default function OrderTrackingPage() {
   return (
     <>
       <SEO
-        title={`Order Tracking - #${order._id.slice(-8).toUpperCase()}`}
-        description={`Track your order #${order._id.slice(-8).toUpperCase()} on Tansoura. Real-time order status and delivery updates.`}
+        title={`Order Tracking - #${order.id.slice(-8).toUpperCase()}`}
+        description={`Track your order #${order.id.slice(-8).toUpperCase()} on Tansoura. Real-time order status and delivery updates.`}
         noindex={true}
       />
 
       <div className="container tracking-page">
         <div className="tracking-header">
           <h1>Order Tracking</h1>
-          <p className="tracking-order-id">Order #{order._id.slice(-8).toUpperCase()}</p>
+          <p className="tracking-order-id">Order #{order.id.slice(-8).toUpperCase()}</p>
           <p className="tracking-date">Placed on {formatDate(order.createdAt)}</p>
         </div>
 
@@ -333,7 +333,7 @@ export default function OrderTrackingPage() {
                 const reason = prompt('Enter cancellation reason (optional):') || 'Cancelled by customer';
                 if (!confirm('Are you sure you want to cancel this order?')) return;
                 try {
-                  await ordersApi.cancel(order._id, reason);
+                  await ordersApi.cancel(order.id, reason);
                   window.location.reload();
                 } catch (err) {
                   alert(err.message);

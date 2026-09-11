@@ -61,15 +61,25 @@ export default function CheckoutPage() {
       const shipping = cartTotal >= 299 ? 0 : 49;
       const discount = appliedPromo?.discount || 0;
       const total = cartTotal + shipping - discount;
+      const keyId = import.meta.env.VITE_RAZORPAY_KEY_ID;
 
-      const razorpayOrder = await ordersApi.createRazorpayOrder(total);
+      if (!keyId) {
+        throw new Error('Razorpay key is not configured.');
+      }
+
+      const razorpayOrder = await ordersApi.createOrder({
+        amount: Math.round(total * 100),
+        currency: 'INR',
+        receipt: `order_${Date.now()}`
+      });
 
       const loadRazorpayScript = () => {
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
           if (window.Razorpay) { resolve(window.Razorpay); return; }
           const script = document.createElement('script');
           script.src = 'https://checkout.razorpay.com/v1/checkout.js';
           script.onload = () => resolve(window.Razorpay);
+          script.onerror = () => reject(new Error('Failed to load Razorpay checkout script.'));
           document.body.appendChild(script);
         });
       };
@@ -77,10 +87,10 @@ export default function CheckoutPage() {
       const Razorpay = await loadRazorpayScript();
 
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_live_TDPERy2DA9NlDu',
+        key: keyId,
         amount: razorpayOrder.amount,
         currency: razorpayOrder.currency,
-        order_id: razorpayOrder.orderId,
+        order_id: razorpayOrder.order_id,
         name: 'Tansoura',
         description: 'Order Payment',
         image: '/logo.png',
@@ -93,23 +103,54 @@ export default function CheckoutPage() {
         theme: { color: '#0f172a' },
         handler: async (response) => {
           try {
+            const verification = await ordersApi.verifyPayment({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature
+            });
+
+            if (!verification.success) {
+              throw new Error(verification.message || 'Payment verification failed.');
+            }
+
             const orderData = {
-              items: cart.map(i => ({ product: i.productId, title: i.title, price: i.price, quantity: i.quantity, image: i.image, variant: i.variant })),
+              items: cart.map(i => ({ productId: i.productId, title: i.title, price: i.price, quantity: i.quantity, image: i.image, variant: i.variant })),
               address, paymentMethod: 'razorpay', subtotal: cartTotal, shipping, total, paymentStatus: 'paid',
               promoCode: appliedPromo?.code, promoDiscount: discount,
-              razorpayPayment: { razorpayOrderId: response.razorpay_order_id, razorpayPaymentId: response.razorpay_payment_id, razorpaySignature: response.razorpay_signature, status: 'captured' }
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature,
+              razorpayStatus: 'captured'
             };
+
             const order = await ordersApi.create(orderData);
             setCart([]); setOrderPlaced(true);
-            navigate('/order-success', { state: { orderId: order._id, paymentMethod: 'razorpay' } });
-          } catch (err) { alert('Payment successful but order creation failed. Please contact support.'); setLoading(false); }
+            navigate('/order-success', { state: { orderId: order.id, paymentMethod: 'razorpay' } });
+          } catch (err) {
+            alert(err.message || 'Payment successful but order creation failed. Please contact support.');
+            setLoading(false);
+          }
         },
-        modal: { ondismiss: () => setLoading(false) }
+        modal: { ondismiss: () => setLoading(false) },
+        payment: {
+          failed: (response) => {
+            // Handle the payment.failed event from Razorpay
+            setLoading(false);
+            const reason =
+              response?.error?.description ||
+              response?.error?.reason ||
+              'Payment was not completed. Please try again.';
+            alert(`Payment failed: ${reason}`);
+          }
+        }
       };
 
       const rzp = new Razorpay(options);
       rzp.open();
-    } catch (err) { alert('Failed to initialize payment. Please try again.'); setLoading(false); }
+    } catch (err) {
+      alert(err.message || 'Failed to initialize payment. Please try again.');
+      setLoading(false);
+    }
   };
 
   const handleUPIAppPayment = async () => {
@@ -132,10 +173,10 @@ export default function CheckoutPage() {
       const shipping = cartTotal >= 299 ? 0 : 49;
       const discount = appliedPromo?.discount || 0;
       const total = cartTotal + shipping - discount;
-      const orderData = { items: cart.map(i => ({ product: i.productId, title: i.title, price: i.price, quantity: i.quantity, image: i.image, variant: i.variant })), address, paymentMethod: 'cod', subtotal: cartTotal, shipping, total, paymentStatus: 'pending', promoCode: appliedPromo?.code, promoDiscount: discount };
+      const orderData = { items: cart.map(i => ({ productId: i.productId, title: i.title, price: i.price, quantity: i.quantity, image: i.image, variant: i.variant })), address, paymentMethod: 'cod', subtotal: cartTotal, shipping, total, paymentStatus: 'pending', promoCode: appliedPromo?.code, promoDiscount: discount };
       const order = await ordersApi.create(orderData);
       setCart([]); setOrderPlaced(true);
-      navigate('/order-success', { state: { orderId: order._id, paymentMethod: 'cod' } });
+      navigate('/order-success', { state: { orderId: order.id, paymentMethod: 'cod' } });
     } catch (err) { alert(`Order failed: ${err.message || 'Please try again'}`); setLoading(false); }
   };
 

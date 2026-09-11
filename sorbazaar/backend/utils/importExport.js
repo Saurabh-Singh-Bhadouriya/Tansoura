@@ -1,6 +1,6 @@
 const fs = require('fs');
 const csv = require('csv-parser');
-const Product = require('../models/Product');
+const prisma = require('../prismaClient');
 
 const PLATFORM_FIELDS = {
   shopify: {
@@ -13,8 +13,6 @@ const PLATFORM_FIELDS = {
     tags: 'Tags',
     published: 'Published',
     option1Name: 'Option1 Name',
-    option2Name: 'Option2 Name',
-    option3Name: 'Option3 Name',
     sku: 'Variant SKU',
     grams: 'Variant Grams',
     inventoryTracker: 'Variant Inventory Tracker',
@@ -36,14 +34,11 @@ const PLATFORM_FIELDS = {
     weightUnit: 'Variant Weight Unit',
     taxCode: 'Variant Tax Code',
     costPerItem: 'Cost per item',
-    priceInternational: 'Price / International',
-    compareAtPriceInternational: 'Compare At Price / International',
     status: 'Status',
     option1: 'Option1 Value',
     option2: 'Option2 Value',
     option3: 'Option3 Value'
   },
-  // Amazon CSV columns must EXACTLY match: id,asin,brand,title,url,currency,price,original_price,rating,review_count,has_prime_shipping,has_deal,deal_text,is_sponsored,options_count,img_url,position,source_url,extracted_at
   amazon: {
     id: 'id', asin: 'asin', vendor: 'brand', title: 'title',
     url: 'url', currency: 'currency', price: 'price',
@@ -52,8 +47,7 @@ const PLATFORM_FIELDS = {
     deal_text: 'deal_text', is_sponsored: 'is_sponsored',
     options_count: 'options_count', imageSrc: 'img_url',
     position: 'position', source_url: 'source_url', extracted_at: 'extracted_at',
-    sku: 'asin',
-    // note: 'id' maps to amazonMeta.asin via the asin field above
+    sku: 'asin'
   },
   flipkart: {
     title: 'Product Title', bodyHtml: 'Description', vendor: 'Brand',
@@ -83,7 +77,6 @@ const PLATFORM_FIELDS = {
   }
 };
 
-// Exact Shopify columns in order as specified
 const SHOPIFY_COLUMNS = [
   'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Product Category', 'Type', 'Tags',
   'Published', 'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value',
@@ -103,26 +96,15 @@ function parseBool(val) {
 
 function mapCategoryToNavPage(category) {
   const map = {
-    'skincare': 'skincare',
-    'skin care': 'skincare',
-    'haircare': 'haircare',
-    'hair care': 'haircare',
-    'bath-body': 'bath-body',
-    'bath & body': 'bath-body',
-    'bath and body': 'bath-body',
-    'makeup': 'makeup',
-    'make up': 'makeup',
-    'electronics': 'electronics',
-    'fashion': 'fashion',
-    'home-living': 'home-living',
-    'home & living': 'home-living',
-    'home and living': 'home-living',
-    'home': 'home-living',
-    'offers': 'offers',
-    'new-arrivals': 'new-arrivals',
-    'new arrivals': 'new-arrivals',
-    'beauty': 'beauty',
-    'grocery': 'grocery'
+    'skincare': 'skincare', 'skin care': 'skincare',
+    'haircare': 'haircare', 'hair care': 'haircare',
+    'bath-body': 'bath-body', 'bath & body': 'bath-body', 'bath and body': 'bath-body',
+    'makeup': 'makeup', 'make up': 'makeup',
+    'electronics': 'electronics', 'fashion': 'fashion',
+    'home-living': 'home-living', 'home & living': 'home-living', 'home and living': 'home-living',
+    'home': 'home-living', 'offers': 'offers',
+    'new-arrivals': 'new-arrivals', 'new arrivals': 'new-arrivals',
+    'beauty': 'beauty', 'grocery': 'grocery'
   };
   return map[category] || 'home';
 }
@@ -130,19 +112,14 @@ function mapCategoryToNavPage(category) {
 function parseRow(row, platform) {
   const fields = PLATFORM_FIELDS[platform];
   if (!fields) return null;
-
-  const get = (key) => {
-    const fieldName = fields[key];
-    return fieldName ? (row[fieldName] || '').trim() : '';
-  };
+  const get = (key) => (fields[key] ? (row[fields[key]] || '').trim() : '');
 
   const tags = get('tags');
   const price = parseFloat(get('price')) || 0;
   const compareAtPrice = parseFloat(get('compareAtPrice')) || 0;
-
   const rawProductCategory = get('productCategory');
   const categoryLower = rawProductCategory ? rawProductCategory.toLowerCase() : '';
-  
+
   const productData = {
     handle: get('handle') || undefined,
     title: get('title') || 'Untitled Product',
@@ -165,8 +142,8 @@ function parseRow(row, platform) {
       fulfillmentService: get('fulfillmentService') || 'manual',
       price,
       compareAtPrice: compareAtPrice || price,
-      requiresShipping: parseBool(get('requiresShipping') !== '' ? get('requiresShipping') : 'true'),
-      taxable: parseBool(get('taxable') !== '' ? get('taxable') : 'true'),
+      requiresShipping: get('requiresShipping') !== '' ? parseBool(get('requiresShipping')) : true,
+      taxable: get('taxable') !== '' ? parseBool(get('taxable')) : true,
       barcode: get('barcode'),
       weightUnit: get('weightUnit') || 'g',
       taxCode: get('taxCode'),
@@ -180,11 +157,10 @@ function parseRow(row, platform) {
     giftCard: parseBool(get('giftCard')),
     seoTitle: get('seoTitle') || get('title'),
     seoDescription: get('seoDescription'),
-    status: parseBool(get('status') !== '' ? get('status') : 'active') ? 'active' : 'draft',
+    status: get('status') !== '' ? (parseBool(get('status')) ? 'active' : 'draft') : 'active',
     platform
   };
 
-  // Amazon-specific fields -> amazonMeta and overrides
   if (platform === 'amazon') {
     const asin = get('asin') || get('id');
     if (asin) {
@@ -192,32 +168,26 @@ function parseRow(row, platform) {
         asin,
         url: get('url'),
         currency: get('currency') || 'INR',
-        original_price: parseFloat(get('compareAtPrice')) || 0, // original_price column maps to compareAtPrice key
-        has_prime_shipping: parseBool(get('has_prime_shipping')),
-        has_deal: parseBool(get('has_deal')),
-        deal_text: get('deal_text'),
-        is_sponsored: parseBool(get('is_sponsored')),
-        options_count: parseInt(get('options_count')) || 1,
-        source_url: get('source_url'),
-        extracted_at: get('extracted_at') ? new Date(get('extracted_at')) : undefined
+        originalPrice: parseFloat(get('compareAtPrice')) || 0,
+        hasPrimeShipping: parseBool(get('has_prime_shipping')),
+        hasDeal: parseBool(get('has_deal')),
+        dealText: get('deal_text'),
+        isSponsored: parseBool(get('is_sponsored')),
+        optionsCount: parseInt(get('options_count')) || 1,
+        sourceUrl: get('source_url'),
+        extractedAt: get('extracted_at') ? new Date(get('extracted_at')) : undefined
       };
     }
-    // Set rating/reviewCount from Amazon CSV columns
     const rating = parseFloat(get('rating'));
     if (rating) productData.rating = rating;
     const reviewCount = parseInt(get('reviewCount'));
     if (reviewCount) productData.reviewCount = reviewCount;
-    // Set vendor from brand column
-    const brand = get('vendor'); // 'vendor' key now maps to 'brand' CSV column
+    const brand = get('vendor');
     if (brand) productData.vendor = brand;
-    // Set sku to asin
-    const sku = get('sku'); // 'sku' key maps to 'asin' CSV column
+    const sku = get('sku');
     if (sku) productData.variants[0].sku = sku;
-    // Set image from img_url column
-    const imgUrl = get('imageSrc'); // 'imageSrc' key now maps to 'img_url' CSV column
-    if (imgUrl) {
-      productData.images = [{ src: imgUrl, position: parseInt(get('position')) || 1, altText: productData.title }];
-    }
+    const imgUrl = get('imageSrc');
+    if (imgUrl) productData.images = [{ src: imgUrl, position: parseInt(get('position')) || 1, altText: productData.title }];
   }
 
   return productData;
@@ -225,15 +195,12 @@ function parseRow(row, platform) {
 
 async function importFromCSV(filePath, platform) {
   return new Promise((resolve, reject) => {
-    const products = [];
     const productMap = new Map();
-
     fs.createReadStream(filePath)
       .pipe(csv())
       .on('data', (row) => {
         const parsed = parseRow(row, platform);
         if (!parsed || !parsed.title) return;
-
         const key = parsed.handle || parsed.title.toLowerCase();
         if (productMap.has(key)) {
           const existing = productMap.get(key);
@@ -248,15 +215,62 @@ async function importFromCSV(filePath, platform) {
           const results = { created: 0, updated: 0, errors: [] };
           for (const [, productData] of productMap) {
             try {
-              const existing = await Product.findOne({
-                $or: [{ handle: productData.handle }, { title: productData.title }]
+              const existing = await prisma.product.findFirst({
+                where: {
+                  OR: [
+                    { handle: productData.handle || '' },
+                    { title: productData.title }
+                  ]
+                }
               });
+
               if (existing) {
-                Object.assign(existing, productData);
-                await existing.save();
+                await prisma.product.update({
+                  where: { id: existing.id },
+                  data: {
+                    title: productData.title,
+                    bodyHtml: productData.bodyHtml,
+                    vendor: productData.vendor,
+                    productCategory: productData.productCategory,
+                    navPage: productData.navPage,
+                    type: productData.type,
+                    tags: productData.tags,
+                    published: productData.published,
+                    status: productData.status,
+                    platform: productData.platform,
+                    rating: productData.rating || 4.5,
+                    reviewCount: productData.reviewCount || 0,
+                    updatedAt: new Date()
+                  }
+                });
                 results.updated++;
               } else {
-                await Product.create(productData);
+                await prisma.product.create({
+                  data: {
+                    title: productData.title,
+                    handle: productData.handle || String(productData.title).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+                    bodyHtml: productData.bodyHtml,
+                    vendor: productData.vendor,
+                    productCategory: productData.productCategory,
+                    navPage: productData.navPage,
+                    type: productData.type,
+                    tags: productData.tags,
+                    published: productData.published,
+                    status: productData.status,
+                    platform: productData.platform,
+                    rating: productData.rating || 4.5,
+                    reviewCount: productData.reviewCount || 0,
+                    option1Name: productData.option1Name,
+                    option2Name: productData.option2Name,
+                    option3Name: productData.option3Name,
+                    giftCard: productData.giftCard,
+                    seoTitle: productData.seoTitle,
+                    seoDescription: productData.seoDescription,
+                    variants: productData.variants,
+                    images: productData.images,
+                    amazonMeta: productData.amazonMeta
+                  }
+                });
                 results.created++;
               }
             } catch (err) {
@@ -279,8 +293,8 @@ function getExportHeaders(platform) {
 
 function productToExportRow(product, platform) {
   if (platform === 'shopify') {
-    const variant = product.variants[0] || {};
-    const image = product.images[0] || {};
+    const variant = (product.variants && product.variants[0]) || {};
+    const image = (product.images && product.images[0]) || {};
     const row = {};
     SHOPIFY_COLUMNS.forEach(col => {
       switch (col) {
@@ -319,8 +333,6 @@ function productToExportRow(product, platform) {
         case 'Variant Weight Unit': row[col] = variant.weightUnit || 'g'; break;
         case 'Variant Tax Code': row[col] = variant.taxCode || ''; break;
         case 'Cost per item': row[col] = variant.costPerItem || 0; break;
-        case 'Price / International': row[col] = variant.price || 0; break;
-        case 'Compare At Price / International': row[col] = variant.compareAtPrice || 0; break;
         case 'Status': row[col] = product.status || 'active'; break;
         default: row[col] = '';
       }
@@ -329,9 +341,9 @@ function productToExportRow(product, platform) {
   }
 
   const fields = PLATFORM_FIELDS[platform] || PLATFORM_FIELDS.shopify;
-  const variant = product.variants[0] || {};
-  const image = product.images[0] || {};
-
+  const variant = (product.variants && product.variants[0]) || {};
+  const image = (product.images && product.images[0]) || {};
+  const am = product.amazonMeta || {};
   const row = {};
   for (const [key, header] of Object.entries(fields)) {
     switch (key) {
@@ -348,30 +360,29 @@ function productToExportRow(product, platform) {
       case 'option3Name': row[header] = product.option3Name; break;
       case 'sku': row[header] = variant.sku; break;
       case 'grams': row[header] = variant.grams; break;
-      case 'inventoryQty': row[header] = variant.inventoryQty; break;
-      case 'price': row[header] = variant.price; break;
-      case 'compareAtPrice': row[header] = variant.compareAtPrice; break;
-      case 'imageSrc': row[header] = image.src; break;
-      case 'imagePosition': row[header] = image.position; break;
-      case 'imageAltText': row[header] = image.altText; break;
-      case 'status': row[header] = product.status; break;
+      case 'inventoryQty': row[header] = variant.inventoryQty || 0; break;
+      case 'price': row[header] = variant.price || 0; break;
+      case 'compareAtPrice': row[header] = variant.compareAtPrice || 0; break;
+      case 'imageSrc': row[header] = image.src || ''; break;
+      case 'imagePosition': row[header] = image.position || 1; break;
+      case 'imageAltText': row[header] = image.altText || ''; break;
+      case 'status': row[header] = product.status || 'active'; break;
       case 'option1': row[header] = variant.option1; break;
       case 'option2': row[header] = variant.option2; break;
       case 'option3': row[header] = variant.option3; break;
-      // Amazon-specific export fields
-      case 'id': row[header] = product.amazonMeta?.asin || variant.sku || ''; break;
-      case 'asin': row[header] = product.amazonMeta?.asin || variant.sku || ''; break;
-      case 'url': row[header] = product.amazonMeta?.url || ''; break;
-      case 'currency': row[header] = product.amazonMeta?.currency || 'INR'; break;
+      case 'id': row[header] = am.asin || variant.sku || ''; break;
+      case 'asin': row[header] = am.asin || variant.sku || ''; break;
+      case 'url': row[header] = am.url || ''; break;
+      case 'currency': row[header] = am.currency || 'INR'; break;
       case 'reviewCount': row[header] = product.reviewCount || 0; break;
-      case 'has_prime_shipping': row[header] = product.amazonMeta?.has_prime_shipping ? 'true' : 'false'; break;
-      case 'has_deal': row[header] = product.amazonMeta?.has_deal ? 'true' : 'false'; break;
-      case 'deal_text': row[header] = product.amazonMeta?.deal_text || ''; break;
-      case 'is_sponsored': row[header] = product.amazonMeta?.is_sponsored ? 'true' : 'false'; break;
-      case 'options_count': row[header] = product.amazonMeta?.options_count || 1; break;
+      case 'has_prime_shipping': row[header] = am.hasPrimeShipping ? 'true' : 'false'; break;
+      case 'has_deal': row[header] = am.hasDeal ? 'true' : 'false'; break;
+      case 'deal_text': row[header] = am.dealText || ''; break;
+      case 'is_sponsored': row[header] = am.isSponsored ? 'true' : 'false'; break;
+      case 'options_count': row[header] = am.optionsCount || 1; break;
       case 'position': row[header] = image.position || 1; break;
-      case 'source_url': row[header] = product.amazonMeta?.source_url || ''; break;
-      case 'extracted_at': row[header] = product.amazonMeta?.extracted_at || ''; break;
+      case 'source_url': row[header] = am.sourceUrl || ''; break;
+      case 'extracted_at': row[header] = am.extractedAt || ''; break;
       case 'rating': row[header] = product.rating || ''; break;
       default: row[header] = '';
     }

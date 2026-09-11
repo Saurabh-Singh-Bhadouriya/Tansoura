@@ -73,7 +73,7 @@ export default function HomePage() {
 
       <div className="container">
         {banners.map(b => (
-          <div key={b._id} className="promo-banner">
+          <div key={b.id} className="promo-banner">
             {b.video ? (
               <video
                 src={mediaUrl(b.video)}
@@ -83,11 +83,15 @@ export default function HomePage() {
                 playsInline
                 className="promo-banner-video"
                 style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'var(--radius-lg)' }}
+                disablePictureInPicture
+                webkit-playsinline="true"
+                x5-playsinline="true"
+                preload="metadata"
               />
             ) : (
               <img src={b.image || 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=1200'} alt={b.title} />
             )}
-            {b.link && (
+            {b.link && !b.link.startsWith('#') && (
               <a href={b.link} className="promo-banner-link" style={{ position: 'absolute', inset: 0, zIndex: 2 }} aria-label={b.title} />
             )}
           </div>

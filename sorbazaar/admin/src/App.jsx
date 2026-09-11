@@ -82,7 +82,7 @@ export default function App() {
   const deleteNotification = async (id) => {
     try {
       await apiFetch(`/notifications/admin/${id}`, { method: 'DELETE' });
-      setAdminNotifications(prev => prev.filter(n => n._id !== id));
+      setAdminNotifications(prev => prev.filter(n => n.id !== id));
     } catch (err) {
       console.error('Failed to delete notification:', err);
     }
@@ -148,7 +148,7 @@ export default function App() {
                 <div className="notification-empty"><p>No notifications</p></div>
               ) : (
                 adminNotifications.slice(0, 20).map(notif => (
-                  <div key={notif._id} className={`notification-item ${!notif.read ? 'notification-unread' : ''}`}>
+                  <div key={notif.id} className={`notification-item ${!notif.read ? 'notification-unread' : ''}`}>
                     <div className="notification-icon">
                       {notif.type === 'upi_payment_pending' ? '💳' : '🔔'}
                     </div>
@@ -175,7 +175,7 @@ export default function App() {
                     </div>
                     <button
                       className="notification-remove"
-                      onClick={() => deleteNotification(notif._id)}
+                      onClick={() => deleteNotification(notif.id)}
                       title="Delete notification"
                       style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16, padding: 4 }}
                     >

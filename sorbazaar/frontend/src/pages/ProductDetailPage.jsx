@@ -52,7 +52,7 @@ export default function ProductDetailPage() {
         setSelectedImage(0);
         setVideoError(false);
         return Promise.all([
-          productsApi.recommendations(p._id),
+          productsApi.recommendations(p.id),
           offersApi.list({ navPage: p.navPage || 'home' })
         ]);
       })
@@ -248,7 +248,7 @@ export default function ProductDetailPage() {
           name: product.title,
           description: productDesc,
           image: productImage,
-          sku: product._id,
+          sku: product.id,
           price: price,
           brand: product.vendor || 'Tansoura',
           inStock: true,
@@ -271,28 +271,38 @@ export default function ProductDetailPage() {
               onMouseEnter={handleMouseEnter}
               onMouseLeave={handleMouseLeave}
             >
-              {product.videos?.length > 0 && !videoError ? (
-                <div className="pd-video-wrap">
-                  <video
-                    src={mediaUrl(product.videos[0])}
-                    controls
-                    autoPlay
-                    muted
-                    loop
-                    playsInline
-                    preload="metadata"
-                    onPlay={handleVideoPlay}
-                    onPause={handleVideoPause}
-                    onError={(e) => {
-                      console.error('Video failed to load:', mediaUrl(product.videos[0]), e);
-                      setIsVideoPlaying(false);
-                      setVideoError(true);
-                    }}
-                    className="pd-video-el"
-                  >
-                    Your browser does not support video playback.
-                  </video>
-                </div>
+               {product.videos?.length > 0 && !videoError ? (
+                 <div className="pd-video-wrap">
+                   <video
+                     src={mediaUrl(product.videos[0])}
+                     controls
+                     autoPlay
+                     muted
+                     loop
+                     playsInline
+                     preload="metadata"
+                     onPlay={handleVideoPlay}
+                     onPause={handleVideoPause}
+                     onError={(e) => {
+                       console.error('Video failed to load:', mediaUrl(product.videos[0]), e);
+                       setIsVideoPlaying(false);
+                       setVideoError(true);
+                     }}
+                     className="pd-video-el"
+                     disablePictureInPicture
+                     webkit-playsinline="true"
+                     x5-playsinline="true"
+                     x-webkit-airplay="deny"
+                     style={{
+                       objectFit: 'contain',
+                       width: '100%',
+                       height: '100%',
+                       background: '#000'
+                     }}
+                   >
+                     Your browser does not support video playback.
+                   </video>
+                 </div>
               ) : (
                 <div className="pd-img-wrap">
                   <img

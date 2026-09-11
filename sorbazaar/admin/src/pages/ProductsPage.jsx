@@ -52,7 +52,7 @@ export default function ProductsPage() {
 
   const load = () => {
     setLoading(true);
-    productsApi.list().then(setProductList).catch(console.error).finally(() => setLoading(false));
+    productsApi.list().then(data => setProductList(Array.isArray(data) ? data : (data.products || []))).catch(() => setProductList([])).finally(() => setLoading(false))
   };
 
   useEffect(load, []);
@@ -98,7 +98,7 @@ export default function ProductsPage() {
       setSelectedProducts([]);
       setSelectAll(false);
     } else {
-      setSelectedProducts(productList.map(p => p._id));
+      setSelectedProducts(productList.map(p => p.id));
       setSelectAll(true);
     }
   };
@@ -162,7 +162,7 @@ export default function ProductsPage() {
         videos.forEach(f => fd.append('videos', f));
       }
 
-      if (editing) await productsApi.update(editing._id, fd);
+      if (editing) await productsApi.update(editing.id, fd);
       else await productsApi.create(fd);
 
       setMessage('Product saved successfully!');
@@ -333,12 +333,12 @@ export default function ProductsPage() {
             <tbody>
               {loading ? <tr><td colSpan={9}>Loading...</td></tr> :
                 productList.map(p => (
-                  <tr key={p._id}>
+                  <tr key={p.id}>
                     <td>
                       <input 
                         type="checkbox" 
-                        checked={selectedProducts.includes(p._id)} 
-                        onChange={() => toggleSelectProduct(p._id)}
+                        checked={selectedProducts.includes(p.id)} 
+                        onChange={() => toggleSelectProduct(p.id)}
                       />
                     </td>
                     <td>
@@ -367,7 +367,7 @@ export default function ProductsPage() {
                     <td><span style={{ color: p.status === 'active' ? 'var(--success)' : 'var(--text-muted)' }}>{p.status}</span></td>
                     <td>
                       <button className="btn btn-sm btn-outline" onClick={() => openEdit(p)}>Edit</button>{' '}
-                      <button className="btn btn-sm btn-danger" onClick={() => handleDelete(p._id)}>Delete</button>
+                      <button className="btn btn-sm btn-danger" onClick={() => handleDelete(p.id)}>Delete</button>
                     </td>
                   </tr>
                 ))}

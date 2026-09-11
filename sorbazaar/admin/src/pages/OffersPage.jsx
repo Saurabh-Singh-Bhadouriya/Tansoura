@@ -11,6 +11,8 @@ export default function OffersPage() {
   const [form, setForm] = useState(emptyOffer);
   const [image, setImage] = useState(null);
   const [video, setVideo] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
 
   const load = () => {
     setLoading(true);
@@ -23,20 +25,40 @@ export default function OffersPage() {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    const fd = new FormData();
-    fd.append('offerData', JSON.stringify(form));
-    if (image) fd.append('image', image);
-    if (video) fd.append('video', video);
-    if (editing) await offersApi.update(editing._id, fd);
-    else await offersApi.create(fd);
-    setShowForm(false);
-    load();
+    setSaving(true);
+    setMessage('');
+    try {
+      const fd = new FormData();
+      fd.append('offerData', JSON.stringify(form));
+      if (image) fd.append('image', image);
+      if (video) fd.append('video', video);
+      let saved;
+      if (editing) {
+        saved = await offersApi.update(editing.id, fd);
+        setList(prev => prev.map(o => o.id === saved.id ? saved : o));
+        setMessage('Offer updated successfully!');
+      } else {
+        saved = await offersApi.create(fd);
+        setList(prev => [...prev, saved]);
+        setMessage('Offer created successfully!');
+      }
+      setShowForm(false);
+    } catch (err) {
+      setMessage(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = async (id) => {
     if (!confirm('Delete this offer/banner?')) return;
-    await offersApi.delete(id);
-    load();
+    try {
+      await offersApi.delete(id);
+      setList(prev => prev.filter(o => o.id !== id));
+      setMessage('Offer deleted');
+    } catch (err) {
+      setMessage(err.message);
+    }
   };
 
   return (
@@ -46,6 +68,8 @@ export default function OffersPage() {
         <button className="btn btn-primary" onClick={openAdd}>+ Add Offer/Banner</button>
       </div>
 
+      {message && <div className={message.includes('success') ? 'success' : 'error'}>{message}</div>}
+
       <div className="card">
         <div className="table-wrap">
           <table>
@@ -53,7 +77,7 @@ export default function OffersPage() {
             <tbody>
               {loading ? <tr><td colSpan={6}>Loading...</td></tr> :
                 list.map(o => (
-                  <tr key={o._id}>
+                  <tr key={o.id}>
                     <td>
                       {o.video ? (
                         <video src={mediaUrl(o.video)} style={{ width: 80, height: 60, objectFit: 'cover', borderRadius: 6 }} muted preload="metadata" />
@@ -67,7 +91,7 @@ export default function OffersPage() {
                     <td>{o.active ? '✅' : '❌'}</td>
                     <td>
                       <button className="btn btn-sm btn-outline" onClick={() => openEdit(o)}>Edit</button>{' '}
-                      <button className="btn btn-sm btn-danger" onClick={() => handleDelete(o._id)}>Delete</button>
+                      <button className="btn btn-sm btn-danger" onClick={() => handleDelete(o.id)}>Delete</button>
                     </td>
                   </tr>
                 ))}
@@ -107,7 +131,7 @@ export default function OffersPage() {
               {video && (
                 <video src={URL.createObjectURL(video)} controls style={{ width: '100%', height: 120, objectFit: 'contain', borderRadius: 8, marginBottom: 16, background: '#000' }} />
               )}
-              <button className="btn btn-primary" type="submit">Save</button>
+              <button className="btn btn-primary" type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
             </form>
           </div>
         </div>

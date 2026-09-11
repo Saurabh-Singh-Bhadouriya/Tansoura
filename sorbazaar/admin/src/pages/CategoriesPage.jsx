@@ -58,12 +58,17 @@ export default function CategoriesPage() {
       fd.append('order', form.order);
       if (image) fd.append('image', image);
 
-      if (editing) await categoriesApi.update(editing._id, fd);
-      else await categoriesApi.create(fd);
+      let saved;
+      if (editing) {
+        saved = await categoriesApi.update(editing.id, fd);
+        setCategories(prev => prev.map(c => c.id === saved.id ? saved : c));
+      } else {
+        saved = await categoriesApi.create(fd);
+        setCategories(prev => [...prev, saved]);
+      }
 
       setMessage('Category saved successfully!');
       setShowForm(false);
-      load();
     } catch (err) {
       setMessage(err.message);
     } finally {
@@ -73,8 +78,12 @@ export default function CategoriesPage() {
 
   const handleDelete = async (id) => {
     if (!confirm('Delete this category?')) return;
-    await categoriesApi.delete(id);
-    load();
+    try {
+      await categoriesApi.delete(id);
+      setCategories(prev => prev.filter(c => c.id !== id));
+    } catch (err) {
+      setMessage(err.message);
+    }
   };
 
   return (
@@ -97,7 +106,7 @@ export default function CategoriesPage() {
             <tbody>
               {loading ? <tr><td colSpan={7}>Loading...</td></tr> :
                 categories.map(cat => (
-                  <tr key={cat._id}>
+                  <tr key={cat.id}>
                     <td>
                       {cat.image ? (
                         <img className="table-img" src={imgUrl(cat.image)} alt="" />
@@ -119,7 +128,7 @@ export default function CategoriesPage() {
                     </td>
                     <td>
                       <button className="btn btn-sm btn-outline" onClick={() => openEdit(cat)}>Edit</button>{' '}
-                      <button className="btn btn-sm btn-danger" onClick={() => handleDelete(cat._id)}>Delete</button>
+                      <button className="btn btn-sm btn-danger" onClick={() => handleDelete(cat.id)}>Delete</button>
                     </td>
                   </tr>
                 ))}

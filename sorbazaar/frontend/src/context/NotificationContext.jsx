@@ -21,8 +21,11 @@ export function NotificationProvider({ children }) {
       setNotifications(data.notifications || []);
       setUnreadCount(data.unreadCount || 0);
     } catch (err) {
-      // Silently fail - user might not be authenticated or server unavailable
-      if (err.message !== 'Authentication required') {
+      // Handle authentication errors - clear invalid token
+      if (err.message === 'Invalid token' || err.message === 'Authentication required') {
+        localStorage.removeItem('token');
+      } else if (err.message !== 'Authentication required') {
+        // Only log non-auth errors to avoid console spam
         console.warn('Failed to load notifications:', err.message);
       }
     } finally {
@@ -40,7 +43,7 @@ export function NotificationProvider({ children }) {
   const markAsRead = async (id) => {
     try {
       await notificationsApi.markRead(id);
-      setNotifications(prev => prev.map(n => n._id === id ? { ...n, read: true } : n));
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
       setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (err) {
       console.warn('Failed to mark notification as read:', err.message);
@@ -58,7 +61,7 @@ export function NotificationProvider({ children }) {
   };
 
   const removeNotification = (id) => {
-    setNotifications(prev => prev.filter(n => n._id !== id));
+    setNotifications(prev => prev.filter(n => n.id !== id));
   };
 
   const refresh = () => loadNotifications();

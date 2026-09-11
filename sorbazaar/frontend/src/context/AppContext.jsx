@@ -89,7 +89,7 @@ export function AppProvider({ children }) {
 
   const addToCart = (product, variant, qty = 1) => {
     setCart(prev => {
-      const key = `${product._id}-${variant?.option1 || 'default'}`;
+      const key = `${product.id}-${variant?.option1 || 'default'}`;
       const existing = prev.find(i => i.key === key);
       if (existing) {
         return prev.map(i => i.key === key ? { ...i, quantity: i.quantity + qty } : i);
@@ -97,7 +97,7 @@ export function AppProvider({ children }) {
       const v = variant || product.variants?.[0];
       return [...prev, {
         key,
-        productId: product._id,
+        productId: product.id,
         title: product.title,
         price: v?.price || 0,
         compareAtPrice: v?.compareAtPrice,

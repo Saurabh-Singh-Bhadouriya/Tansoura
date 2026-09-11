@@ -35,7 +35,7 @@ export default function NotificationDropdown() {
   }, []);
 
   const handleNotificationClick = async (notif) => {
-    if (!notif.read) await markAsRead(notif._id);
+    if (!notif.read) await markAsRead(notif.id);
     setOpen(false);
   };
 
@@ -82,7 +82,7 @@ export default function NotificationDropdown() {
             ) : (
               notifications.map(notif => (
                 <div
-                  key={notif._id}
+                  key={notif.id}
                   className={`notification-item ${!notif.read ? 'notification-unread' : ''}`}
                   onClick={() => handleNotificationClick(notif)}
                 >
@@ -122,7 +122,7 @@ export default function NotificationDropdown() {
                     className="notification-remove"
                     onClick={(e) => {
                       e.stopPropagation();
-                      removeNotification(notif._id);
+                      removeNotification(notif.id);
                     }}
                   >
                     ✕

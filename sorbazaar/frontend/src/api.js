@@ -94,7 +94,9 @@ export const orders = {
   get: (id) => apiFetch(`/orders/${id}`),
   cancel: (id, reason) => apiFetch(`/orders/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }),
   uploadScreenshot: (formData) => apiFetch('/orders/upload-screenshot', { method: 'POST', body: formData }),
-  createRazorpayOrder: (total) => apiFetch('/orders/create-razorpay-order', { method: 'POST', body: JSON.stringify({ total }) })
+  createRazorpayOrder: (total) => apiFetch('/orders/create-razorpay-order', { method: 'POST', body: JSON.stringify({ total }) }),
+  createOrder: (payload) => apiFetch('/orders/create-order', { method: 'POST', body: JSON.stringify(payload) }),
+  verifyPayment: (payload) => apiFetch('/orders/verify-payment', { method: 'POST', body: JSON.stringify(payload) })
 };
 
 export const notifications = {

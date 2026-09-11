@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const prisma = require('../prismaClient');
 
 const auth = async (req, res, next) => {
   try {
@@ -13,7 +13,7 @@ const auth = async (req, res, next) => {
       console.warn('[auth middleware] JWT_SECRET is missing. Using dev fallback (NOT for production).');
     }
     const decoded = jwt.verify(token, secret);
-    const user = await User.findById(decoded.id).select('-password');
+    const user = await prisma.user.findFirst({ where: { id: decoded.id } });
     if (!user) {
       res.status(401).json({ message: 'User not found' });
       return;
@@ -34,7 +34,7 @@ const adminAuth = async (req, res, next) => {
     }
     const secret = process.env.JWT_SECRET || 'dev_jwt_secret_change_me';
     const decoded = jwt.verify(token, secret);
-    const user = await User.findById(decoded.id).select('-password');
+    const user = await prisma.user.findFirst({ where: { id: decoded.id } });
     if (!user) {
       res.status(401).json({ message: 'User not found' });
       return;

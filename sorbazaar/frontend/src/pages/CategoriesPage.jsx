@@ -88,7 +88,7 @@ export default function CategoriesPage() {
               const categoryProducts = productsByCategory[cat.handle] || [];
 
               return (
-                <div key={cat._id} className="category-card">
+                <div key={cat.id} className="category-card">
                   <div className="category-header">
                     <span className="category-icon">{meta.icon}</span>
                     <div>
@@ -100,7 +100,7 @@ export default function CategoriesPage() {
                   <ProductGrid products={categoryProducts} loading={false} />
 
                   <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
-                    <Link to={`/category/${cat.handle || cat._id}`} style={{
+                      <Link to={`/category/${cat.handle || cat.id}`} style={{
                       display: 'inline-block',
                       padding: '10px 24px',
                       background: 'var(--primary)',

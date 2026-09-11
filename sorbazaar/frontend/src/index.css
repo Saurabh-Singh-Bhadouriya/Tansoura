@@ -20,18 +20,93 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  scroll-behavior: auto;
+}
+
 body {
   font-family: var(--font);
   background: var(--bg);
   color: var(--text);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  min-width: 320px;
 }
 
 a { text-decoration: none; color: inherit; }
 button { font-family: var(--font); cursor: pointer; border: none; }
-img { max-width: 100%; display: block; }
-input, select, textarea { font-family: var(--font); }
+
+/* ===== RESPONSIVE MEDIA - GLOBAL ===== */
+img, video, picture, source, canvas, svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+img {
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+picture, video, iframe {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+video {
+  background: #000;
+  object-fit: contain;
+}
+
+/* Prevent iOS zoom on input focus */
+input, select, textarea {
+  font-family: var(--font);
+  font-size: 16px;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+}
+
+/* Fix iOS input styling */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="tel"],
+input[type="number"],
+input[type="search"],
+textarea,
+select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  border-radius: var(--radius);
+}
+
+/* Prevent text size adjustment on orientation change */
+@media screen and (max-device-width: 480px) {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+  }
+}
+
+/* iOS safe area support */
+@supports (padding-top: env(safe-area-inset-top)) {
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
 
 .container { max-width: 1280px; margin: 0 auto; padding: 0 20px; }
 
@@ -853,49 +928,67 @@ input, select, textarea { font-family: var(--font); }
   gap: 20px;
   width: 100%;
   max-width: 100%;
+  min-width: 0;
 }
 
 /* Gallery */
 .pd-gallery {
   width: 100%;
   max-width: 100%;
+  min-width: 0;
 }
 .pd-main-image {
   position: relative;
   width: 100%;
   max-width: 100%;
-  aspect-ratio: 1 / 1;
+  height: 0;
+  padding-bottom: 100%; /* Fixed 1:1 aspect ratio - works in ALL browsers */
   border-radius: 12px;
   overflow: hidden;
   background: var(--primary-light);
   touch-action: pan-y;
 }
 .pd-img-wrap {
-  position: relative;
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .pd-main-img {
   width: 100%;
   height: 100%;
   object-fit: contain;
   display: block;
+  max-width: 100%;
+  max-height: 100%;
+  min-width: 0;
+  min-height: 0;
 }
 .pd-video-wrap {
-  position: relative;
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
-  min-height: 300px;
   background: #000;
   border-radius: 12px;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .pd-video-el {
   width: 100%;
   height: 100%;
   object-fit: contain;
   display: block;
+  max-width: 100%;
+  max-height: 100%;
+  min-width: 0;
+  min-height: 0;
 }
 
 /* Image dots */
@@ -943,14 +1036,18 @@ input, select, textarea { font-family: var(--font); }
 .pd-thumbs::-webkit-scrollbar { display: none; }
 .pd-thumb {
   flex-shrink: 0;
-  width: 60px;
-  height: 60px;
+  width: clamp(50px, 10vw, 72px);
+  height: clamp(50px, 10vw, 72px);
   border-radius: 8px;
   overflow: hidden;
   border: 2px solid var(--border);
   cursor: pointer;
   transition: all 0.2s;
   scroll-snap-align: start;
+  background: var(--primary-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .pd-thumb--active {
   border-color: var(--primary);
@@ -959,18 +1056,25 @@ input, select, textarea { font-family: var(--font); }
 .pd-thumb-img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
+  max-width: 100%;
+  max-height: 100%;
 }
 .pd-thumb-video {
   position: relative;
   width: 100%;
   height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .pd-thumb-video video {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  max-width: 100%;
+  max-height: 100%;
 }
 .pd-thumb-play {
   position: absolute;
@@ -987,6 +1091,7 @@ input, select, textarea { font-family: var(--font); }
 .pd-info {
   width: 100%;
   max-width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -1450,10 +1555,12 @@ input, select, textarea { font-family: var(--font); }
   .pd-page { padding: 0 28px; }
   .pd-layout { 
     display: grid; 
-    grid-template-columns: 1fr 1fr; 
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); 
     gap: 32px; 
+    align-items: start;
   }
-  .pd-gallery { position: sticky; top: 100px; align-self: start; }
+  .pd-gallery { position: sticky; top: 100px; align-self: start; min-width: 0; }
+  .pd-info { min-width: 0; }
   .pd-title { font-size: 28px; }
   .pd-sale-price { font-size: 34px; }
   .pd-actions { flex-direction: row; }
@@ -1817,7 +1924,72 @@ input, select, textarea { font-family: var(--font); }
   background: var(--white);
   border-radius: var(--radius-lg);
   padding: 32px;
-  box-shadow: var(--shadow);
+  animation: fadeIn 0.3s ease;
+}
+
+/* Slide-in animation for profile edit sections - Desktop */
+.profile-slide-in {
+  animation: slideInRight 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Slide-out animation when leaving edit mode - Desktop */
+.profile-slide-out {
+  animation: slideOutRight 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slideOutRight {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+}
+
+/* Mobile-specific slide-up animation */
+@media (max-width: 768px) {
+  .profile-slide-in {
+    animation: slideInUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  @keyframes slideInUp {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .profile-slide-out {
+    animation: slideOutDown 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  @keyframes slideOutDown {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+  }
 }
 
 .profile-section-content h2 {

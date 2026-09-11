@@ -71,10 +71,10 @@ export default function MyOrdersPage() {
             {orders.map(order => {
               const s = STATUS_STYLES[order.orderStatus] || STATUS_STYLES.pending;
               return (
-                <div key={order._id} className="order-card">
+                <div key={order.id} className="order-card">
                   <div className="order-card-header">
                     <div>
-                      <span className="order-id">Order #{order._id.slice(-8).toUpperCase()}</span>
+                      <span className="order-id">Order #{order.id.slice(-8).toUpperCase()}</span>
                       <span className="order-date">{formatDate(order.createdAt)}</span>
                     </div>
                     <span style={{ backgroundColor: s.bg, color: s.color, padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, display: 'inline-block' }}>
@@ -92,7 +92,7 @@ export default function MyOrdersPage() {
                     <div className="order-card-actions">
                       {order.orderStatus !== 'cancelled' && order.orderStatus !== 'returned' && order.orderStatus !== 'delivered' && (
                         <>
-                          <Link to={`/order/${order._id}/track`} className="btn btn-sm btn-primary">Track Order</Link>
+                          <Link to={`/order/${order.id}/track`} className="btn btn-sm btn-primary">Track Order</Link>
                           {CANCELLABLE_STATUSES.includes(order.orderStatus) && (
                             <button 
                               className="btn btn-sm btn-outline" 
@@ -101,7 +101,7 @@ export default function MyOrdersPage() {
                                 const reason = prompt('Enter cancellation reason (optional):') || 'Cancelled by customer';
                                 if (!confirm('Are you sure you want to cancel this order?')) return;
                                 try {
-                                  await ordersApi.cancel(order._id, reason);
+                                  await ordersApi.cancel(order.id, reason);
                                   window.location.reload();
                                 } catch (err) {
                                   alert(err.message);

@@ -1,6 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const bcrypt = require('bcryptjs');
+const prisma = require('../prismaClient');
 
 const router = express.Router();
 
@@ -14,7 +15,7 @@ const generateToken = (id) => {
 };
 
 const publicUser = (user) => ({
-  id: user._id,
+  id: user.id,
   username: user.username,
   email: user.email,
   phone: user.phone,
@@ -35,21 +36,32 @@ const publicUser = (user) => ({
 
 const normalizeLogin = (login = '') => String(login).trim();
 
-const findByLogin = (login) => {
+async function findByLogin(login) {
   const value = normalizeLogin(login);
   const emailValue = value.toLowerCase();
-  return User.findOne({
-    $or: [{ username: value }, { email: emailValue }, { phone: value }]
+  return prisma.user.findFirst({
+    where: {
+      OR: [
+        { username: value },
+        { email: emailValue },
+        { phone: value }
+      ]
+    }
   });
-};
+}
 
-const findByContact = (contact) => {
+async function findByContact(contact) {
   const value = normalizeLogin(contact);
   const emailValue = value.toLowerCase();
-  return User.findOne({
-    $or: [{ email: emailValue }, { phone: value }]
+  return prisma.user.findFirst({
+    where: {
+      OR: [
+        { email: emailValue },
+        { phone: value }
+      ]
+    }
   });
-};
+}
 
 router.post('/signup', async (req, res) => {
   try {
@@ -60,12 +72,33 @@ router.post('/signup', async (req, res) => {
     if (!username || !password) return res.status(400).json({ message: 'Username and password required' });
     if (!email && !phone) return res.status(400).json({ message: 'Email or phone required' });
 
-    const exists = await User.findOne({ $or: [{ username }, ...(email ? [{ email }] : []), ...(phone ? [{ phone }] : [])] });
-    if (exists) return res.status(400).json({ message: 'User already exists' });
+    const existing = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { username },
+          ...(email ? [{ email }] : []),
+          ...(phone ? [{ phone }] : [])
+        ]
+      }
+    });
+    if (existing) return res.status(400).json({ message: 'User already exists' });
 
-    const user = await User.create({ username, email, phone, password, role: 'user' });
+    const hashedPassword = await bcrypt.hash(password, 12);
+    const user = await prisma.user.create({
+      data: {
+        username,
+        email: email || null,
+        phone: phone || null,
+        password: hashedPassword,
+        role: 'user',
+        addresses: [],
+        wishlist: [],
+        recentlyViewed: [],
+        reviews: []
+      }
+    });
     res.status(201).json({
-      token: generateToken(user._id),
+      token: generateToken(user.id),
       user: publicUser(user)
     });
   } catch (err) {
@@ -78,11 +111,11 @@ router.post('/login', async (req, res) => {
     const login = normalizeLogin(req.body.login);
     const { password } = req.body;
     const user = await findByLogin(login);
-    if (!user || !(await user.comparePassword(password))) {
+    if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
     res.json({
-      token: generateToken(user._id),
+      token: generateToken(user.id),
       user: publicUser(user)
     });
   } catch (err) {
@@ -124,13 +157,16 @@ router.post('/reset-password', async (req, res) => {
     const user = await findByContact(login);
     if (!user) return res.status(404).json({ message: 'No account found' });
 
-    user.password = password;
-    await user.save();
+    const hashedPassword = await bcrypt.hash(password, 12);
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashedPassword }
+    });
 
     res.json({
       message: 'Password reset successfully',
-      token: generateToken(user._id),
-      user: publicUser(user)
+      token: generateToken(updated.id),
+      user: publicUser(updated)
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -138,18 +174,22 @@ router.post('/reset-password', async (req, res) => {
 });
 
 router.get('/me', require('../middleware/auth').auth, async (req, res) => {
-  res.json({ user: req.user });
+  const user = await prisma.user.findFirst({ where: { id: req.user.id } });
+  res.json({ user: publicUser(user) });
 });
 
 router.put('/address', require('../middleware/auth').auth, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
-    const address = req.body;
-    const idx = user.addresses.findIndex(a => a.isDefault);
-    if (idx >= 0) Object.assign(user.addresses[idx], address);
-    else user.addresses.push({ ...address, isDefault: true });
-    await user.save();
-    res.json({ addresses: user.addresses });
+    const { v4: uuidv4 } = require('uuid');
+    const user = await prisma.user.findFirst({ where: { id: req.user.id } });
+    const existing = user.addresses || [];
+    const isDefault = existing.length === 0 ? true : (req.body.isDefault || false);
+    const newAddress = { ...req.body, id: uuidv4(), isDefault };
+    let addresses = existing.map(a => ({ ...a, isDefault: false }));
+    if (isDefault) addresses = addresses.map(a => ({ ...a, isDefault: false }));
+    addresses.push(newAddress);
+    await prisma.user.update({ where: { id: user.id }, data: { addresses } });
+    res.json({ addresses });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

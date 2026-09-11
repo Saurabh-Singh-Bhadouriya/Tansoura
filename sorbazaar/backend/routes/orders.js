@@ -1,87 +1,144 @@
 const express = require('express');
 const Razorpay = require('razorpay');
-const Order = require('../models/Order');
+const prisma = require('../prismaClient');
 const { auth, adminAuth } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const { notifyUser, notifyAdmins } = require('./notifications');
+const { verifyRazorpaySignature } = require('../utils/razorpay');
 
 const router = express.Router();
 
-// Razorpay instance
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-// Safe order number formatter (handles Mongoose ObjectId objects)
 const orderNum = (id) => String(id).slice(-8).toUpperCase();
 
-// Create Razorpay order
-router.post('/create-razorpay-order', auth, async (req, res) => {
+router.post('/create-order', auth, async (req, res) => {
   try {
-    const { total } = req.body;
-    const amount = Math.round(Number(total) * 100); // Convert to paise for Razorpay
-    const options = {
-      amount: amount,
-      currency: 'INR',
-      receipt: `order_${Date.now()}`,
-      payment_capture: 1,
-    };
+    const rawAmount = Number(req.body.amount ?? req.body.total ?? 0);
+    if (!Number.isFinite(rawAmount) || rawAmount < 100) {
+      return res.status(400).json({ message: 'Amount must be at least 100 paise.' });
+    }
+
+    const amount = Math.round(rawAmount);
+    const options = { amount, currency: 'INR', receipt: `order_${Date.now()}`, payment_capture: 1 };
+
     const order = await razorpay.orders.create(options);
-    res.json({ orderId: order.id, amount: order.amount, currency: order.currency, receipt: order.receipt });
+    return res.json({ order_id: order.id, amount: order.amount, currency: order.currency, receipt: order.receipt });
   } catch (err) {
     console.error('Razorpay order creation error:', err);
-    res.status(500).json({ message: err.message || 'Razorpay order creation failed' });
+    const statusCode = err?.statusCode === 401 ? 401 : 500;
+    return res.status(statusCode).json({ message: err.message || 'Razorpay order creation failed' });
   }
 });
 
-// Create order
+router.post('/create-razorpay-order', auth, async (req, res) => {
+  try {
+    const { total } = req.body;
+    const rawAmount = Number(total ?? 0) * 100;
+    if (!Number.isFinite(rawAmount) || rawAmount < 100) {
+      return res.status(400).json({ message: 'Amount must be at least 100 paise.' });
+    }
+
+    const order = await razorpay.orders.create({
+      amount: Math.round(rawAmount),
+      currency: 'INR',
+      receipt: `order_${Date.now()}`,
+      payment_capture: 1
+    });
+
+    return res.json({ orderId: order.id, amount: order.amount, currency: order.currency, receipt: order.receipt });
+  } catch (err) {
+    console.error('Razorpay order creation error:', err);
+    const statusCode = err?.statusCode === 401 ? 401 : 500;
+    return res.status(statusCode).json({ message: err.message || 'Razorpay order creation failed' });
+  }
+});
+
+router.post('/verify-payment', auth, async (req, res) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({ message: 'Missing Razorpay payment details.' });
+    }
+
+    const isValid = verifyRazorpaySignature({
+      order_id: razorpay_order_id,
+      payment_id: razorpay_payment_id,
+      razorpay_signature,
+      key_secret: process.env.RAZORPAY_KEY_SECRET
+    });
+
+    if (!isValid) {
+      return res.status(400).json({ message: 'Payment verification failed.' });
+    }
+
+    return res.json({ success: true, message: 'Payment verified successfully.' });
+  } catch (err) {
+    console.error('Razorpay verification error:', err);
+    return res.status(500).json({ message: err.message || 'Payment verification failed.' });
+  }
+});
+
 router.post('/', auth, async (req, res) => {
   try {
-    const { items, address, paymentMethod, subtotal, shipping, total, paymentStatus, upiPayment } = req.body;
-    
+    const { items, address, paymentMethod, subtotal, shipping, total, paymentStatus, upiPayment, razorpayOrderId, razorpayPaymentId, razorpaySignature, razorpayStatus } = req.body;
+
     const orderData = {
-      user: req.user._id,
-      items,
-      address,
-      paymentMethod,
+      userId: req.user.id,
+      items: (items || []).map(item => ({ ...item })),
+      addressFullName: address?.fullName,
+      addressPhone: address?.phone,
+      addressPincode: address?.pincode,
+      addressLine1: address?.addressLine1,
+      addressLine2: address?.addressLine2,
+      addressCity: address?.city,
+      addressState: address?.state,
       subtotal,
       shipping: shipping || 0,
       total,
-      paymentStatus: paymentStatus || (paymentMethod === 'razorpay' ? 'paid' : (paymentMethod === 'cod' ? 'pending' : 'paid')),
+      paymentMethod: paymentMethod || 'cod',
+      paymentStatus: paymentStatus || (paymentMethod === 'razorpay' || paymentMethod === 'cod' ? (paymentMethod === 'cod' ? 'pending' : 'paid') : 'paid'),
       orderStatus: paymentMethod === 'razorpay' || paymentMethod === 'cod' ? 'confirmed' : 'pending',
-      tracking: {
-        confirmed: (paymentMethod === 'cod' || paymentMethod === 'razorpay') ? new Date() : undefined
-      },
       estimatedDelivery: '3-7 business days'
     };
+
+    if (paymentMethod === 'cod' || paymentMethod === 'razorpay') {
+      orderData.trackingConfirmed = new Date();
+    }
 
     if (paymentMethod === 'upi') {
       orderData.paymentStatus = 'pending_verification';
       orderData.orderStatus = 'pending';
-      orderData.upiPayment = {
-        utr: upiPayment?.utr || '',
-        status: 'pending_verification',
-        verifiedAt: null
-      };
+      orderData.upiUtr = upiPayment?.utr || '';
+      orderData.upiStatus = 'pending_verification';
       orderData.paymentVerificationAttemptedAt = new Date();
     }
 
-    const order = await Order.create(orderData);
+    // Persist Razorpay references for signature-verified online payments
+    if (paymentMethod === 'razorpay' && razorpayOrderId && razorpayPaymentId) {
+      orderData.razorpayOrderId = razorpayOrderId;
+      orderData.razorpayPaymentId = razorpayPaymentId;
+      orderData.razorpaySignature = razorpaySignature || '';
+      orderData.razorpayStatus = razorpayStatus || 'captured';
+    }
 
-    // Notify in background (don't wait, don't let it block the response)
+    const order = await prisma.order.create({ data: orderData });
+
     setImmediate(async () => {
       try {
-        await notifyUser(req.user._id, 'order_placed', 'Order Placed Successfully! 🎉',
-          `Your order #${orderNum(order._id)} has been placed.`,
-          { orderId: order._id, total: order.total, paymentMethod },
-          `/order/${order._id}/track`);
+        await notifyUser(req.user.id, 'order_placed', 'Order Placed Successfully! 🎉',
+          `Your order #${orderNum(order.id)} has been placed.`,
+          { orderId: order.id, total: order.total, paymentMethod },
+          `/order/${order.id}/track`);
       } catch (e) { console.error('Notify user error:', e); }
-      
       try {
         await notifyAdmins('order_placed', 'New Order Received! 📦',
-          `Order #${orderNum(order._id)} placed by ${req.user.username}`,
-          { orderId: order._id, total: order.total, userId: req.user._id, username: req.user.username },
+          `Order #${orderNum(order.id)} placed by ${req.user.username}`,
+          { orderId: order.id, total: order.total, userId: req.user.id, username: req.user.username },
           `/orders`, [
             { label: 'View Order', action: 'view', style: 'primary' },
             { label: 'Mark Processing', action: 'mark_processing', style: 'outline' }
@@ -96,43 +153,41 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
-// Upload UPI payment screenshot
 router.post('/upload-screenshot', auth, upload.single('screenshot'), async (req, res) => {
   try {
     const { orderId } = req.body;
     if (!req.file) return res.status(400).json({ message: 'Screenshot required' });
-    
-    const order = await Order.findOne({ _id: orderId, user: req.user._id });
+
+    const order = await prisma.order.findFirst({ where: { id: orderId, userId: req.user.id } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    order.upiPayment.screenshot = `/uploads/${req.file.filename}`;
-    await order.save();
+    const updated = await prisma.order.update({
+      where: { id: order.id },
+      data: { upiScreenshot: `/uploads/${req.file.filename}` }
+    });
 
-    // Notify user
-    await notifyUser(req.user._id, 'upi_payment_pending', 'Payment Proof Uploaded ✅',
-      `Your payment proof for order #${orderNum(order._id)} has been submitted for verification.`,
-      { orderId: order._id, utr: order.upiPayment.utr });
+    await notifyUser(req.user.id, 'upi_payment_pending', 'Payment Proof Uploaded ✅',
+      `Your payment proof for order #${orderNum(order.id)} has been submitted for verification.`,
+      { orderId: order.id, utr: order.upiUtr });
 
-    // Notify admins
     await notifyAdmins('upi_payment_pending', 'UPI Payment Verification Needed 💳',
-      `Order #${orderNum(order._id)} - UTR: ${order.upiPayment.utr || 'N/A'}, Amount: ₹${order.total}`,
-      { orderId: order._id, utr: order.upiPayment.utr, total: order.total, screenshot: order.upiPayment.screenshot },
+      `Order #${orderNum(order.id)} - UTR: ${order.upiUtr || 'N/A'}, Amount: ₹${order.total}`,
+      { orderId: order.id, utr: order.upiUtr, total: order.total, screenshot: updated.upiScreenshot },
       `/orders`, [
         { label: 'Verify Payment', action: 'verify', style: 'primary' },
         { label: 'Reject', action: 'reject', style: 'danger' }
       ]);
 
-    res.json({ message: 'Screenshot uploaded', screenshot: order.upiPayment.screenshot });
+    res.json({ message: 'Screenshot uploaded', screenshot: updated.upiScreenshot });
   } catch (err) {
     console.error('Screenshot upload error:', err);
     res.status(500).json({ message: err.message });
   }
 });
 
-// User: Cancel order (only if not shipped yet)
 router.post('/:id/cancel', auth, async (req, res) => {
   try {
-    const order = await Order.findOne({ _id: req.params.id, user: req.user._id });
+    const order = await prisma.order.findFirst({ where: { id: req.params.id, userId: req.user.id } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
     const cancellableStatuses = ['pending', 'confirmed', 'pending_verification'];
@@ -140,189 +195,186 @@ router.post('/:id/cancel', auth, async (req, res) => {
       return res.status(400).json({ message: 'Order cannot be cancelled after it has been shipped' });
     }
 
-    order.orderStatus = 'cancelled';
-    order.cancellationReason = req.body.reason || 'Cancelled by customer';
-    order.tracking.cancelled = new Date();
+    const updated = await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        orderStatus: 'cancelled',
+        cancellationReason: req.body.reason || 'Cancelled by customer',
+        trackingCancelled: new Date()
+      }
+    });
 
-    await order.save();
+    await notifyUser(req.user.id, 'order_cancelled', 'Order Cancelled',
+      `Your order #${orderNum(order.id)} has been cancelled.`,
+      { orderId: order.id, reason: updated.cancellationReason });
 
-    // Notify user
-    await notifyUser(req.user._id, 'order_cancelled', 'Order Cancelled',
-      `Your order #${orderNum(order._id)} has been cancelled.`,
-      { orderId: order._id, reason: order.cancellationReason });
-
-    // Notify admins
     await notifyAdmins('order_cancelled_by_admin', 'Order Cancelled by Customer ⚠️',
-      `Order #${orderNum(order._id)} was cancelled by ${req.user.username}.`,
-      { orderId: order._id, reason: order.cancellationReason, username: req.user.username });
+      `Order #${orderNum(order.id)} was cancelled by ${req.user.username}.`,
+      { orderId: order.id, reason: updated.cancellationReason, username: req.user.username });
 
-    res.json({ message: 'Order cancelled successfully', order });
+    res.json({ message: 'Order cancelled successfully', order: updated });
   } catch (err) {
     console.error('Cancel order error:', err);
     res.status(500).json({ message: err.message });
   }
 });
 
-// Admin: Update order status
 router.put('/:id/status', adminAuth, async (req, res) => {
   try {
-    const { orderStatus, cancellationReason, received } = req.body;
-    const order = await Order.findById(req.params.id);
+    const { orderStatus, cancellationReason } = req.body;
+    const order = await prisma.order.findFirst({ where: { id: req.params.id } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    const oldStatus = order.orderStatus;
-    order.orderStatus = orderStatus;
-
-    // Set received timestamp if status is being set to "received"
-    if (orderStatus === 'received') {
-      order.tracking.received = new Date();
-    }
-    if (orderStatus === 'confirmed') order.tracking.confirmed = new Date();
-    if (orderStatus === 'shipped') order.tracking.shipped = new Date();
-    if (orderStatus === 'out_for_delivery') order.tracking.outForDelivery = new Date();
-    if (orderStatus === 'delivered') order.tracking.delivered = new Date();
+    const data = { orderStatus };
+    if (orderStatus === 'received') data.trackingReceived = new Date();
+    if (orderStatus === 'confirmed') data.trackingConfirmed = new Date();
+    if (orderStatus === 'shipped') data.trackingShipped = new Date();
+    if (orderStatus === 'out_for_delivery') data.trackingOutForDelivery = new Date();
+    if (orderStatus === 'delivered') data.trackingDelivered = new Date();
     if (orderStatus === 'cancelled') {
-      order.cancellationReason = cancellationReason || 'Cancelled by admin';
-      order.tracking.cancelled = new Date();
+      data.cancellationReason = cancellationReason || 'Cancelled by admin';
+      data.trackingCancelled = new Date();
     }
 
-    await order.save();
+    const updated = await prisma.order.update({ where: { id: order.id }, data });
 
-    // Notify user of status change
     const statusMessages = {
-      received: { title: 'Order Received! 📋', message: `Your order #${orderNum(order._id)} has been received and is being processed.` },
-      confirmed: { title: 'Order Confirmed! ✅', message: `Your order #${orderNum(order._id)} has been confirmed.` },
-      shipped: { title: 'Order Shipped! 🚚', message: `Your order #${orderNum(order._id)} has been shipped.` },
-      out_for_delivery: { title: 'Out for Delivery! 📍', message: `Your order #${orderNum(order._id)} is out for delivery.` },
-      delivered: { title: 'Delivered! 🎉', message: `Your order #${orderNum(order._id)} has been delivered.` },
-      cancelled: { title: 'Order Cancelled', message: `Your order #${orderNum(order._id)} has been cancelled.` }
+      received: { title: 'Order Received! 📋', message: `Your order #${orderNum(order.id)} has been received and is being processed.` },
+      confirmed: { title: 'Order Confirmed! ✅', message: `Your order #${orderNum(order.id)} has been confirmed.` },
+      shipped: { title: 'Order Shipped! 🚚', message: `Your order #${orderNum(order.id)} has been shipped.` },
+      out_for_delivery: { title: 'Out for Delivery! 📍', message: `Your order #${orderNum(order.id)} is out for delivery.` },
+      delivered: { title: 'Delivered! 🎉', message: `Your order #${orderNum(order.id)} has been delivered.` },
+      cancelled: { title: 'Order Cancelled', message: `Your order #${orderNum(order.id)} has been cancelled.` }
     };
 
     const notif = statusMessages[orderStatus];
     if (notif) {
-      await notifyUser(order.user, `order_${orderStatus}`, notif.title, notif.message,
-        { orderId: order._id, oldStatus, newStatus: orderStatus },
-        `/order/${order._id}/track`);
+      await notifyUser(order.userId, `order_${orderStatus}`, notif.title, notif.message,
+        { orderId: order.id, oldStatus: order.orderStatus, newStatus: orderStatus },
+        `/order/${order.id}/track`);
     }
 
-    res.json({ message: 'Order status updated', order });
+    res.json({ message: 'Order status updated', order: updated });
   } catch (err) {
     console.error('Status update error:', err);
     res.status(500).json({ message: err.message });
   }
 });
 
-// Admin: Get all orders (for verification)
+// Admin: Get all orders (join user info)
 router.get('/admin/all', adminAuth, async (req, res) => {
   try {
-    const { status, paymentStatus } = req.query;
-    const filter = {};
-    if (status) filter.orderStatus = status;
-    if (paymentStatus) filter.paymentStatus = paymentStatus;
-    
-    const orders = await Order.find(filter)
-      .populate('user', 'username email phone')
-      .sort({ createdAt: -1 });
-    res.json(orders);
+    const { status, paymentStatus, page, limit } = req.query;
+    const where = {};
+    if (status) where.orderStatus = status;
+    if (paymentStatus) where.paymentStatus = paymentStatus;
+
+    const orders = await prisma.order.findMany({ where, orderBy: { createdAt: 'desc' } });
+
+    // Join user info
+    const users = await prisma.user.raw.find({}, { projection: { _id: 1, username: 1, email: 1, phone: 1 } }).toArray();
+    const userMap = new Map(users.map(u => [String(u._id), u]));
+    const out = orders.map(o => ({
+      ...o,
+      user: (() => {
+        const u = userMap.get(String(o.userId));
+        return u ? { id: String(u._id), username: u.username, email: u.email, phone: u.phone } : null;
+      })()
+    }));
+
+    res.json(out);
   } catch (err) {
     console.error('Get all orders error:', err);
     res.status(500).json({ message: err.message });
   }
 });
 
-// Admin: Verify UPI payment
 router.put('/admin/verify-payment/:id', adminAuth, async (req, res) => {
   try {
     const { action } = req.body;
-    const order = await Order.findById(req.params.id);
+    const order = await prisma.order.findFirst({ where: { id: req.params.id } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
+    const data = {};
     if (action === 'verify') {
-      order.paymentStatus = 'verified';
-      order.orderStatus = 'confirmed';
-      order.upiPayment.status = 'verified';
-      order.upiPayment.verifiedAt = new Date();
-      order.upiPayment.verifiedBy = req.user._id;
-      order.upiPayment.autoVerified = false;
-      order.paymentVerifiedAt = new Date();
-      order.tracking.confirmed = new Date();
+      data.paymentStatus = 'verified';
+      data.orderStatus = 'confirmed';
+      data.upiStatus = 'verified';
+      data.upiVerifiedAt = new Date();
+      data.upiVerifiedBy = req.user.id;
+      data.upiAutoVerified = false;
+      data.paymentVerifiedAt = new Date();
+      data.trackingConfirmed = new Date();
     } else if (action === 'reject') {
-      order.upiPayment.status = 'rejected';
-      order.paymentStatus = 'failed';
+      data.upiStatus = 'rejected';
+      data.paymentStatus = 'failed';
     }
 
-    await order.save();
+    const updated = await prisma.order.update({ where: { id: order.id }, data });
 
-    // Notify user
     const notifType = action === 'verify' ? 'upi_payment_verified' : 'upi_payment_rejected';
     const notifTitle = action === 'verify' ? 'Payment Verified ✅' : 'Payment Rejected ❌';
     const notifMessage = action === 'verify'
-      ? `Your UPI payment for order #${orderNum(order._id)} has been verified.`
-      : `Your UPI payment for order #${orderNum(order._id)} was rejected. Please try again.`;
+      ? `Your UPI payment for order #${orderNum(order.id)} has been verified.`
+      : `Your UPI payment for order #${orderNum(order.id)} was rejected. Please try again.`;
 
-    await notifyUser(order.user, notifType, notifTitle, notifMessage,
-      { orderId: order._id, action });
+    await notifyUser(order.userId, notifType, notifTitle, notifMessage, { orderId: order.id, action });
 
-    res.json({ message: `Payment ${action === 'verify' ? 'verified' : 'rejected'} successfully`, order });
+    res.json({ message: `Payment ${action === 'verify' ? 'verified' : 'rejected'} successfully`, order: updated });
   } catch (err) {
     console.error('Verify payment error:', err);
     res.status(500).json({ message: err.message });
   }
 });
 
-// Admin: Auto-verify pending UPI payments
 router.post('/admin/auto-verify', adminAuth, async (req, res) => {
   try {
     const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
-    
-    const orders = await Order.find({
-      paymentMethod: 'upi',
-      paymentStatus: 'pending_verification',
-      paymentVerificationAttemptedAt: { $lte: twoMinutesAgo },
-      'upiPayment.status': 'pending_verification'
+    const orders = await prisma.order.findMany({
+      where: {
+        paymentMethod: 'upi',
+        paymentStatus: 'pending_verification',
+        paymentVerificationAttemptedAt: { lte: twoMinutesAgo },
+        upiStatus: 'pending_verification'
+      }
     });
 
     let autoVerifiedCount = 0;
     for (const order of orders) {
-      order.paymentStatus = 'verified';
-      order.orderStatus = 'confirmed';
-      order.upiPayment.status = 'verified';
-      order.upiPayment.verifiedAt = new Date();
-      order.upiPayment.autoVerified = true;
-      order.paymentVerifiedAt = new Date();
-      order.tracking.confirmed = new Date();
-      await order.save();
-
-      // Notify user
-      await notifyUser(order.user, 'payment_auto_verified', 'Payment Auto-Verified ✅',
-        `Your UPI payment for order #${orderNum(order._id)} has been auto-verified after 2 minutes.`,
-        { orderId: order._id, autoVerified: true });
-
+      await prisma.order.update({
+        where: { id: order.id },
+        data: {
+          paymentStatus: 'verified',
+          orderStatus: 'confirmed',
+          upiStatus: 'verified',
+          upiVerifiedAt: new Date(),
+          upiAutoVerified: true,
+          paymentVerifiedAt: new Date(),
+          trackingConfirmed: new Date()
+        }
+      });
+      await notifyUser(order.userId, 'payment_auto_verified', 'Payment Auto-Verified ✅',
+        `Your UPI payment for order #${orderNum(order.id)} has been auto-verified after 2 minutes.`,
+        { orderId: order.id, autoVerified: true });
       autoVerifiedCount++;
     }
 
-    res.json({ 
-      message: `Auto-verified ${autoVerifiedCount} pending payments`, 
-      autoVerified: autoVerifiedCount 
-    });
+    res.json({ message: `Auto-verified ${autoVerifiedCount} pending payments`, autoVerified: autoVerifiedCount });
   } catch (err) {
     console.error('Auto-verify error:', err);
     res.status(500).json({ message: err.message });
   }
 });
 
-// Admin: Delete order
 router.delete('/admin/:id', adminAuth, async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id);
+    const order = await prisma.order.findFirst({ where: { id: req.params.id } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    await Order.findByIdAndDelete(req.params.id);
-
-    // Notify user
-    await notifyUser(order.user, 'order_deleted', 'Order Deleted',
-      `Your order #${orderNum(order._id)} has been deleted by admin.`,
-      { orderId: order._id });
+    await prisma.order.delete({ where: { id: order.id } });
+    await notifyUser(order.userId, 'order_deleted', 'Order Deleted',
+      `Your order #${orderNum(order.id)} has been deleted by admin.`,
+      { orderId: order.id });
 
     res.json({ message: 'Order deleted successfully' });
   } catch (err) {
@@ -331,10 +383,12 @@ router.delete('/admin/:id', adminAuth, async (req, res) => {
   }
 });
 
-// Get my orders
 router.get('/my', auth, async (req, res) => {
   try {
-    const orders = await Order.find({ user: req.user._id }).sort({ createdAt: -1 });
+    const orders = await prisma.order.findMany({
+      where: { userId: req.user.id },
+      orderBy: { createdAt: 'desc' }
+    });
     res.json(orders);
   } catch (err) {
     console.error('Get my orders error:', err);
@@ -342,10 +396,9 @@ router.get('/my', auth, async (req, res) => {
   }
 });
 
-// Get single order by ID
 router.get('/:id', auth, async (req, res) => {
   try {
-    const order = await Order.findOne({ _id: req.params.id, user: req.user._id });
+    const order = await prisma.order.findFirst({ where: { id: req.params.id, userId: req.user.id } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
     res.json(order);
   } catch (err) {

@@ -1,5 +1,5 @@
 const express = require('express');
-const PromoCode = require('../models/PromoCode');
+const prisma = require('../prismaClient');
 const { adminAuth, auth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -7,7 +7,7 @@ const router = express.Router();
 // Admin: Get all promo codes
 router.get('/admin/all', adminAuth, async (req, res) => {
   try {
-    const codes = await PromoCode.find().sort({ createdAt: -1 });
+    const codes = await prisma.promoCode.findMany({ orderBy: { createdAt: 'desc' } });
     res.json(codes);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -17,7 +17,7 @@ router.get('/admin/all', adminAuth, async (req, res) => {
 // Admin: Create promo code
 router.post('/admin/create', adminAuth, async (req, res) => {
   try {
-    const code = await PromoCode.create(req.body);
+    const code = await prisma.promoCode.create({ data: req.body });
     res.status(201).json(code);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -27,8 +27,7 @@ router.post('/admin/create', adminAuth, async (req, res) => {
 // Admin: Update promo code
 router.put('/admin/:id', adminAuth, async (req, res) => {
   try {
-    const code = await PromoCode.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!code) return res.status(404).json({ message: 'Promo code not found' });
+    const code = await prisma.promoCode.update({ where: { id: req.params.id }, data: req.body });
     res.json(code);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -38,7 +37,7 @@ router.put('/admin/:id', adminAuth, async (req, res) => {
 // Admin: Delete promo code
 router.delete('/admin/:id', adminAuth, async (req, res) => {
   try {
-    await PromoCode.findByIdAndDelete(req.params.id);
+    await prisma.promoCode.delete({ where: { id: req.params.id } });
     res.json({ message: 'Promo code deleted' });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -49,39 +48,38 @@ router.delete('/admin/:id', adminAuth, async (req, res) => {
 router.post('/validate', auth, async (req, res) => {
   try {
     const { code, orderAmount, cartItems } = req.body;
-    const user = req.user;
-    
-    const promo = await PromoCode.findOne({ code: code.toUpperCase(), isActive: true });
+    const user = await prisma.user.findFirst({ where: { id: req.user.id } });
+    if (!user) return res.status(401).json({ message: 'User not found' });
+
+    const promo = await prisma.promoCode.findFirst({
+      where: { code: (code || '').toUpperCase(), isActive: true }
+    });
     if (!promo) {
       return res.status(404).json({ message: 'Invalid promo code' });
     }
 
-    // Check validity dates
     const now = new Date();
-    if (promo.validFrom > now) {
+    if (promo.validFrom && promo.validFrom > now) {
       return res.status(400).json({ message: 'Promo code not yet valid' });
     }
     if (promo.validUntil && promo.validUntil < now) {
       return res.status(400).json({ message: 'Promo code expired' });
     }
 
-    // Check minimum order amount
     if (orderAmount < promo.minOrderAmount) {
       return res.status(400).json({ message: `Minimum order amount should be ${promo.minOrderAmount}` });
     }
 
-    // Check usage limit
     if (promo.usageLimit > 0 && promo.usageCount >= promo.usageLimit) {
       return res.status(400).json({ message: 'Promo code usage limit exceeded' });
     }
 
-    // Check per-user limit
-    const userUsage = promo.usedBy?.filter(uid => uid.toString() === user._id.toString())?.length || 0;
+    // Count this user's usage from embedded promoUsages
+    const userUsage = (user.promoUsages || []).filter(u => u.promoCodeId === promo.id).length;
     if (userUsage >= promo.perUserLimit) {
       return res.status(400).json({ message: 'You have already used this promo code' });
     }
 
-    // Calculate discount
     let discount = 0;
     if (promo.discountType === 'percentage') {
       discount = (orderAmount * promo.discountValue) / 100;

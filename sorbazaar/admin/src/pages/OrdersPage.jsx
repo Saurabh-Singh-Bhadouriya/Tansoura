@@ -41,7 +41,7 @@ const STATUS_OPTIONS = [
 // Helper to convert MongoDB ObjectId to string
 const toId = (id) => {
   if (!id) return '';
-  return typeof id === 'object' ? String(id._id || id) : String(id);
+  return typeof id === 'object' ? String(id) : String(id);
 };
 
 export default function OrdersPage() {
@@ -60,8 +60,8 @@ export default function OrdersPage() {
         // Ensure all _id fields are strings
         const normalized = data.map(order => ({
           ...order,
-          _id: toId(order._id),
-          user: typeof order.user === 'object' ? { ...order.user, _id: toId(order.user._id) } : order.user
+          id: toId(order.id),
+          user: typeof order.user === 'object' ? { ...order.user, _id: toId(order.id) } : order.user
         }));
         setOrders(normalized);
       })
@@ -78,7 +78,7 @@ export default function OrdersPage() {
       setTimers(prev => {
         const newTimers = {};
         orders.forEach(order => {
-          const id = toId(order._id);
+          const id = toId(order.id);
           if (order.paymentStatus === 'pending_verification' && order.paymentVerificationAttemptedAt) {
             const remaining = 120 - Math.floor((Date.now() - new Date(order.paymentVerificationAttemptedAt).getTime()) / 1000);
             newTimers[id] = Math.max(0, remaining);
@@ -192,7 +192,7 @@ export default function OrdersPage() {
               {loading ? <tr><td colSpan={9}>Loading...</td></tr> :
                 orders.length === 0 ? <tr><td colSpan={9} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No orders found</td></tr> :
                 orders.map(order => {
-                  const orderId = toId(order._id);
+                  const orderId = toId(order.id);
                   const timerTime = timers[orderId];
                   
                   return (

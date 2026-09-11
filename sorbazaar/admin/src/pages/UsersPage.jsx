@@ -56,7 +56,7 @@ export default function UsersPage() {
       if (editing) {
         const payload = { ...form };
         if (!payload.password) delete payload.password;
-        await apiFetch(`/users/${editing._id}`, { method: 'PUT', body: JSON.stringify(payload) });
+        await apiFetch(`/users/${editing.id}`, { method: 'PUT', body: JSON.stringify(payload) });
         setMessage('User updated successfully!');
       } else {
         if (!form.password) {
@@ -127,7 +127,7 @@ export default function UsersPage() {
                 </tr>
               ) : (
                 users.map((u) => (
-                  <tr key={u._id}>
+                  <tr key={u.id}>
                     <td>
                       <strong>{u.fullName || 'N/A'}</strong>
                     </td>
@@ -154,10 +154,10 @@ export default function UsersPage() {
                       <button className="btn btn-sm btn-outline" onClick={() => openEdit(u)}>
                         Edit
                       </button>{' '}
-                      <button className="btn btn-sm btn-outline" onClick={() => handleBan(u._id)}>
+                      <button className="btn btn-sm btn-outline" onClick={() => handleBan(u.id)}>
                         {u.status === 'banned' ? 'Unban' : 'Ban'}
                       </button>{' '}
-                      <button className="btn btn-sm btn-danger" onClick={() => handleDelete(u._id)}>
+                      <button className="btn btn-sm btn-danger" onClick={() => handleDelete(u.id)}>
                         Delete
                       </button>
                     </td>

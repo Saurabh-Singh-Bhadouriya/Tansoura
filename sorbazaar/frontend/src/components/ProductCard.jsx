@@ -51,6 +51,9 @@ export default function ProductCard({ product, onAddCart }) {
             playsInline
             preload="metadata"
             poster={imgUrl(product.images?.[0]?.src)}
+            disablePictureInPicture
+            webkit-playsinline="true"
+            x5-playsinline="true"
           />
         ) : (
           <img src={imgUrl(product.images?.[0]?.src)} alt={product.title} loading="lazy" />
@@ -101,7 +104,7 @@ export function ProductGrid({ products, loading }) {
   if (!products?.length) return <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No products found</div>;
   return (
     <div className="product-grid">
-      {products.map(p => <ProductCard key={p._id} product={p} />)}
+      {products.map(p => <ProductCard key={p.id} product={p} />)}
     </div>
   );
 }

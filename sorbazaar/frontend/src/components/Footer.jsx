@@ -24,9 +24,9 @@ export default function Footer() {
             <h4>Quick Links</h4>
             <ul>
               <li><Link to="/checkout">Checkout</Link></li>
-              <li><a href="#">Track Order</a></li>
-              <li><a href="#">Return Policy</a></li>
-              <li><a href="#">Contact Us</a></li>
+              <li><Link to="/orders">Track Order</Link></li>
+              <li><span style={{ cursor: 'default', color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>Return Policy</span></li>
+              <li><a href="mailto:support@tansoura.com">Contact Us</a></li>
             </ul>
           </div>
           <div>

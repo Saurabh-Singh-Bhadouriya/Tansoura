@@ -48,6 +48,11 @@ export default function HeroSlider({ navPage = 'home' }) {
             muted
             loop
             playsInline
+            disablePictureInPicture
+            webkit-playsinline="true"
+            x5-playsinline="true"
+            preload="metadata"
+            style={{ objectFit: 'cover', width: '100%', height: '100%' }}
           />
         ) : (
           <div className="hero-media hero-bg" style={{ backgroundImage: `url(${mediaSrc})` }} />
@@ -55,8 +60,8 @@ export default function HeroSlider({ navPage = 'home' }) {
         <div className="hero-content">
           <h1>{slide.title}</h1>
           <p>{slide.subtitle}</p>
-          {slide.buttonText && (
-            <a href={slide.link || '#'} className="btn btn-primary">{slide.buttonText}</a>
+          {slide.buttonText && slide.link && (
+            <a href={slide.link} className="btn btn-primary">{slide.buttonText}</a>
           )}
         </div>
       </div>

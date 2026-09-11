@@ -46,6 +46,8 @@ export default function ProfilePage() {
   const [notifPrefs, setNotifPrefs] = useState({ orderUpdates: true, offers: true, promotional: true });
   const [settings, setSettings] = useState({ language: 'en', theme: 'light' });
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [savedData, setSavedData] = useState(null);
 
   useEffect(() => {
     if (!user) return;
@@ -72,7 +74,7 @@ export default function ProfilePage() {
   const loadOrders = async () => {
     try {
       const data = await ordersApi.my();
-      setOrders(data.orders || []);
+      setOrders(Array.isArray(data) ? data : (data.orders || []));
     } catch (err) { console.error(err); }
     setLoading(false);
   };
@@ -222,7 +224,7 @@ export default function ProfilePage() {
   const removeWishlist = async (productId) => {
     try {
       await profileApi.removeFromWishlist(productId);
-      setWishlist(prev => prev.filter(p => p._id !== productId));
+      setWishlist(prev => prev.filter(p => p.id !== productId));
     } catch (err) {
       showMessage('error', err.message);
     }
@@ -325,11 +327,11 @@ export default function ProfilePage() {
             <div className="profile-recent-orders" style={{ marginTop: 32 }}>
               <h3 style={{ marginBottom: 16 }}>Recent Orders</h3>
               {orders.slice(0, 3).map(order => (
-                <div key={order._id} className="profile-mini-order">
-                  <span className="order-id-mini">#{order._id?.slice(-8)}</span>
+                <div key={order.id} className="profile-mini-order">
+                  <span className="order-id-mini">#{order.id?.slice(-8)}</span>
                   <span className={`order-status-badge status-${order.orderStatus}`}>{order.orderStatus}</span>
                   <span className="order-total-mini">{formatPrice(order.total)}</span>
-                  <Link to={`/order/${order._id}/track`} className="btn btn-sm btn-outline">Track</Link>
+                  <Link to={`/order/${order.id}/track`} className="btn btn-sm btn-outline">Track</Link>
                 </div>
               ))}
               {orders.length === 0 && <p style={{ color: 'var(--text-muted)' }}>No orders yet.</p>}
@@ -340,8 +342,11 @@ export default function ProfilePage() {
       // 2. PERSONAL INFORMATION
       case 'personal-info':
         return (
-          <div className="profile-section-content">
-            <h2>Personal Information</h2>
+          <div className="profile-section-content profile-slide-in">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+              <button className="btn btn-outline btn-sm" onClick={() => handleSectionChange('dashboard')}>← Back</button>
+              <h2 style={{ margin: 0 }}>Personal Information</h2>
+            </div>
             <form onSubmit={handleInfoUpdate}>
               <div className="profile-photo-section">
                 <div className="profile-photo-wrap">
@@ -390,7 +395,10 @@ export default function ProfilePage() {
                   </select>
                 </div>
               </div>
-              <button type="submit" className="btn btn-primary" style={{ marginTop: 20 }}>Save Changes</button>
+              <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
+                <button type="button" className="btn btn-outline" onClick={() => handleSectionChange('dashboard')}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Save Changes</button>
+              </div>
             </form>
           </div>
         );
@@ -540,10 +548,10 @@ export default function ProfilePage() {
             </div>
             <div style={{ marginTop: 16 }}>
               {orders.map(order => (
-                <div key={order._id} className="order-card">
+                <div key={order.id} className="order-card">
                   <div className="order-card-header">
                     <div>
-                      <span className="order-id">Order #{order._id?.slice(-8)}</span>
+                      <span className="order-id">Order #{order.id?.slice(-8)}</span>
                       <span className="order-date">{new Date(order.createdAt).toLocaleDateString('en-IN')}</span>
                     </div>
                     <span className={`order-status-badge status-${order.orderStatus}`}>{order.orderStatus}</span>
@@ -557,8 +565,8 @@ export default function ProfilePage() {
                   <div className="order-card-footer">
                     <span className="order-total">{formatPrice(order.total)}</span>
                     <div className="order-card-actions">
-                      <Link to={`/order/${order._id}/track`} className="btn btn-sm btn-outline">Track Order</Link>
-                      <Link to={`/order/${order._id}/track`} className="btn btn-sm btn-outline">Download Invoice</Link>
+                      <Link to={`/order/${order.id}/track`} className="btn btn-sm btn-outline">Track Order</Link>
+                      <Link to={`/order/${order.id}/track`} className="btn btn-sm btn-outline">Download Invoice</Link>
                       <button className="btn btn-sm btn-primary">Buy Again</button>
                     </div>
                   </div>
@@ -576,7 +584,7 @@ export default function ProfilePage() {
             <h2>Wishlist ❤️</h2>
             <div className="wishlist-grid">
               {wishlist.map(product => (
-                <div key={product._id} className="wishlist-item">
+                <div key={product.id} className="wishlist-item">
                   <img src={imgUrl(product.images?.[0]?.src)} alt={product.title} />
                   <div className="wishlist-item-info">
                     <h4>{product.title}</h4>
@@ -584,7 +592,7 @@ export default function ProfilePage() {
                   </div>
                   <div className="wishlist-actions">
                     <button className="btn btn-sm btn-primary" onClick={() => { /* Add to cart */ }}>Move to Cart</button>
-                    <button className="btn btn-sm btn-outline" style={{ color: 'var(--danger)' }} onClick={() => removeWishlist(product._id)}>Remove</button>
+                    <button className="btn btn-sm btn-outline" style={{ color: 'var(--danger)' }} onClick={() => removeWishlist(product.id)}>Remove</button>
                   </div>
                 </div>
               ))}
@@ -679,7 +687,7 @@ export default function ProfilePage() {
           <div className="profile-section-content">
             <h2>Reviews & Ratings</h2>
             {reviews.map(review => (
-              <div key={review._id} className="review-card">
+              <div key={review.id} className="review-card">
                 <div className="review-product-info">
                   <img src={imgUrl(review.product?.images?.[0]?.src)} alt={review.product?.title} />
                   <div>

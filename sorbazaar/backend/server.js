@@ -1,14 +1,12 @@
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const compression = require('compression');
-const { auth, adminAuth } = require('./middleware/auth');
-const axios = require('axios');
 
+const prisma = require('./prismaClient');
 const app = express();
 
 // ===== SECURITY & PERFORMANCE MIDDLEWARE =====
@@ -147,27 +145,6 @@ app.use((err, req, res, next) => {
     return res.status(403).json({ message: 'CORS: Origin not allowed' });
   }
 
-  // Mongoose validation error
-  if (err.name === 'ValidationError') {
-    return res.status(400).json({ 
-      message: 'Validation error', 
-      errors: Object.values(err.errors).map(e => e.message) 
-    });
-  }
-
-  // Mongoose duplicate key error
-  if (err.code === 11000) {
-    const field = Object.keys(err.keyValue)[0];
-    return res.status(409).json({ 
-      message: `Duplicate value for ${field}. This ${field} is already in use.` 
-    });
-  }
-
-  // Mongoose cast error (invalid ObjectId)
-  if (err.name === 'CastError') {
-    return res.status(400).json({ message: 'Invalid ID format' });
-  }
-
   // JSON parse error
   if (err.type === 'entity.parse.failed') {
     return res.status(400).json({ message: 'Invalid JSON in request body' });
@@ -179,92 +156,81 @@ app.use((err, req, res, next) => {
   }
 
   // Default error
-  res.status(err.status || 500).json({ 
+  res.status(err.status || 500).json({
     message: err.message || 'Internal server error',
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
   });
 });
 
-// ===== MONGODB CONNECTION =====
-const MONGODB_URI = process.env.MONGODB_URI;
-if (!MONGODB_URI) {
-  console.error('FATAL: MONGODB_URI environment variable is not set');
-  process.exit(1);
-}
+// ===== DATABASE CONNECTION =====
+const { connectDB, disconnectDB, getDB } = require('./config/db');
 
-mongoose.set('strictQuery', false);
-
-const mongooseOptions = {
-  family: 4, // Use IPv4
-  serverSelectionTimeoutMS: 10000,
-  socketTimeoutMS: 45000,
-  maxPoolSize: 10,
-  minPoolSize: 2,
-  retryWrites: true,
-  w: 'majority'
+const checkDbConnection = async () => {
+  try {
+    await connectDB();
+    await getDB().command({ ping: 1 });
+    console.log('MongoDB connected successfully');
+    return true;
+  } catch (err) {
+    console.error('Database connection error:', err.message);
+    return false;
+  }
 };
-
-mongoose.connect(MONGODB_URI, mongooseOptions)
-  .then(() => console.log('MongoDB connected successfully'))
-  .catch(err => {
-    console.error('MongoDB connection error:', err);
-    process.exit(1);
-  });
-
-// MongoDB connection event handlers
-mongoose.connection.on('error', (err) => {
-  console.error('MongoDB runtime error:', err);
-});
-
-mongoose.connection.on('disconnected', () => {
-  console.warn('MongoDB disconnected. Attempting to reconnect...');
-});
-
-mongoose.connection.on('reconnected', () => {
-  console.log('MongoDB reconnected');
-});
 
 // ===== SERVER STARTUP =====
 const PORT = parseInt(process.env.PORT) || 5000;
 
-function startServer(port) {
-  const server = app.listen(port, () => {
-    console.log(`SorBazaar API running on port ${port}`);
-  });
-
-  server.on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-      console.error(`Port ${port} is already in use. Trying port ${port + 1}...`);
-      server.close(() => {
-        startServer(port + 1);
-      });
-    } else {
-      console.error('Server error:', err);
+async function startServer(port) {
+  try {
+    const connected = await checkDbConnection();
+    if (!connected) {
+      console.error('FATAL: Could not connect to MongoDB database. Exiting.');
+      process.exit(1);
     }
-  });
 
-  // Graceful shutdown
-  const gracefulShutdown = (signal) => {
-    console.log(`\n${signal} received. Shutting down gracefully...`);
-    server.close(() => {
-      console.log('HTTP server closed.');
-      mongoose.connection.close(false, () => {
-        console.log('MongoDB connection closed.');
-        process.exit(0);
-      });
+    const server = app.listen(port, () => {
+      console.log(`SorBazaar API running on port ${port}`);
     });
 
-    // Force shutdown after 10 seconds
-    setTimeout(() => {
-      console.error('Forced shutdown after timeout.');
-      process.exit(1);
-    }, 10000);
-  };
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.error(`Port ${port} is already in use. Trying port ${port + 1}...`);
+        server.close(() => {
+          startServer(port + 1);
+        });
+      } else {
+        console.error('Server error:', err);
+      }
+    });
 
-  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    // Graceful shutdown
+    const gracefulShutdown = (signal) => {
+      console.log(`\n${signal} received. Shutting down gracefully...`);
+      server.close(() => {
+        console.log('HTTP server closed.');
+        disconnectDB().then(() => {
+          console.log('Database connection closed.');
+          process.exit(0);
+        }).catch(() => process.exit(1));
+      });
 
-  return server;
+      // Force shutdown after 10 seconds
+      setTimeout(() => {
+        console.error('Forced shutdown after timeout.');
+        process.exit(1);
+      }, 10000);
+    };
+
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+    return server;
+  } catch (err) {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  }
 }
 
 startServer(PORT);
+
+module.exports = {};
